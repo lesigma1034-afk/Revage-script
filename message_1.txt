@@ -4,45 +4,45 @@ if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 if getnamecallmethod then
-loadstring(game:HttpGet("https://raw.githubusercontent.com/Pixeluted/adoniscries/main/Source.lua",true))()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/Pixeluted/adoniscries/main/Source.lua",true))()
 end
 
 coroutine.wrap(function()
-local success, err = pcall(function()
-    local gamerawmetatable = getrawmetatable(game)
-    setreadonly(gamerawmetatable, false)
+    local success, err = pcall(function()
+        local gamerawmetatable = getrawmetatable(game)
+        setreadonly(gamerawmetatable, false)
 
-    old__namecall1 = gamerawmetatable.__namecall
-    gamerawmetatable.__namecall = newcclosure(function(self, ...)
-        local args = {...}
-        local remoteName = tostring(args[1])
+        old__namecall1 = gamerawmetatable.__namecall
+        gamerawmetatable.__namecall = newcclosure(function(self, ...)
+            local args = {...}
+            local remoteName = tostring(args[1])
 
-        local blockedRemotes = {
-            ["TeleportDetect"] = true,
-            ["CHECKER_1"] = true,
-            ["CHECKER"] = true,
-            ["GUI_CHECK"] = true,
-            ["OneMoreTime"] = true,
-            ["checkingSPEED"] = true,
-            ["BANREMOTE"] = true,
-            ["PERMAIDBAN"] = true,
-            ["KICKREMOTE"] = true,
-            ["BR_KICKPC"] = true,
-            ["BR_KICKMOBILE"] = true
-        }
+            local blockedRemotes = {
+                ["TeleportDetect"] = true,
+                ["CHECKER_1"] = true,
+                ["CHECKER"] = true,
+                ["GUI_CHECK"] = true,
+                ["OneMoreTime"] = true,
+                ["checkingSPEED"] = true,
+                ["BANREMOTE"] = true,
+                ["PERMAIDBAN"] = true,
+                ["KICKREMOTE"] = true,
+                ["BR_KICKPC"] = true,
+                ["BR_KICKMOBILE"] = true
+            }
 
-        if blockedRemotes[remoteName] then
-            return
-        end
+            if blockedRemotes[remoteName] then
+                return
+            end
 
-        return old__namecall1(self, ...)
+            return old__namecall1(self, ...)
+        end)
     end)
-end)
 
-if not success then
-    warn("[Anti-RemoteBlock] Executor not support hook metatable (__namecall). Skipped.")
-end
-warn("[+] Matcha.cc : anticheat bypassed.")
+    if not success then
+        warn("[Anti-RemoteBlock] Executor not support hook metatable (__namecall). Skipped.")
+    end
+    warn("[+] Matcha.cc : anticheat bypassed.")
 end)()
 
 local repo = 'https://raw.githubusercontent.com/alebinh60/asmobile/refs/heads/main/'
@@ -56,12 +56,13 @@ local Toggles = Library.Toggles
 Library.ShowToggleFrameInKeybinds = true
 Library.ShowCustomCursor = true
 Library.NotifySide = "Right"
+
 local TextChatService = game:GetService("TextChatService")
 local chatWindow = TextChatService:FindFirstChild("ChatWindowConfiguration")
-local ChatEnabled = true
-if ChatEnabled and chatWindow then
+if chatWindow then
     chatWindow.Enabled = true 
 end
+
 local Camera = workspace.CurrentCamera
 local Window = Library:CreateWindow({
 	Title = "",
@@ -73,9 +74,11 @@ local Window = Library:CreateWindow({
     AutoShow = true,
     MobileButtonsSide = "Left"
 })
+
 local plr = game.Players.LocalPlayer
 local mps = game:GetService("MarketplaceService")
 loadstring(game:HttpGet("https://raw.githubusercontent.com/alebinh60/asmobile/refs/heads/main/anhyeuvy"))()
+
 local ownerList = {
     ["anhchangm5"] = true,
     ["Dao_Beo"] = true,
@@ -113,8 +116,10 @@ local function checkBypass()
     end)
     return owns or getgenv().bypassUsers[plr.Name] == true
 end
+
 local hasPremium = checkPremium()
 local hasBypass  = checkBypass()
+
 if isOwner then
     Library:Notify("Owner Matcha User! Welcome " .. plr.DisplayName .. " (@" .. plr.Name .. ")", 15)
 end
@@ -124,11 +129,10 @@ end
 if hasPremium then
     Library:Notify("Premium User! Welcome " .. plr.DisplayName .. " (@" .. plr.Name .. ")", 10)
 end
-if not isOwner then
-    if not hasBypass and not hasPremium then
-        Library:Notify("Freemium User! Welcome " .. plr.DisplayName .. " (@" .. plr.Name .. ")", 10)
-    end
+if not isOwner and not hasBypass and not hasPremium then
+    Library:Notify("Freemium User! Welcome " .. plr.DisplayName .. " (@" .. plr.Name .. ")", 10)
 end
+
 local Tabs = {
     Main = Window:AddTab('Main', 'target'),
     Player = Window:AddTab('Player', 'users'),
@@ -137,16 +141,8 @@ local Tabs = {
     Misc = Window:AddTab('Misc', 'heart'),
     ['UI Settings'] = Window:AddTab('UI Settings', 'settings'),
 }
-local previousTargetHealth = {}
-local TargetAimActive = false
-local BuyingAmmo = false
-local BuyingAmmoActive = false
-local BuyingActive = false
-local AutoKillActive = false
-local AutoHealActive = false
-local AutoArmorActive = false
-local AutoLoadoutActive = false
-local BuyingSingleActive = false
+
+-- ПОЛНАЯ ТАБЛИЦА НАСТРОЕК ИЗ ПЕРВОГО СКРИПТА
 getgenv().Matcha = {}
 local matchacc = {
     TargetAim = {
@@ -228,15 +224,6 @@ local matchacc = {
     Wallbang = {
         Enabled = false,
     },
-    HitboxExpander = {
-        Enabled = false,
-        Visualize = false,
-        Color = Color3.fromRGB(255, 255, 255),
-        OutlineColor = Color3.fromRGB(255, 255, 255),
-        FillTransparency = 0.5,
-        OutlineTransparency = 0.3,
-        Size = 15,
-    },
     Movement = {
         WalkSpeedEnabled = false,
         WalkSpeed = 16,
@@ -244,7 +231,11 @@ local matchacc = {
         JumpPower = 50,
     },
 }
-local oldVelPos = {}
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 
 local DotCircle = Drawing.new("Circle")
 DotCircle.Visible = false
@@ -265,328 +256,62 @@ local SupportedGames = {
     [134531910435633] = {Name = "Da Strike", Arg = "MOUSE", Remote = "MAINEVENT"},
     [111208915794141] = {Name = "Hood Z", Arg = "UpdateMousePos", Remote = "MainEvent"}
 }
-local CurrentGame = SupportedGames[game.PlaceId]
-if not LPH_OBFUSCATED then
-    LPH_JIT = function(...) return ... end
-    LPH_NO_VIRTUALIZE  = function(...) return ... end
-end
 
-local BodyClone = game:GetObjects("rbxassetid://8246626421")[1]
-BodyClone.Parent = workspace
-BodyClone.Humanoid:Destroy()
-BodyClone.Head.Face:Destroy()
-for _, v in pairs(BodyClone:GetDescendants()) do
-    if v:IsA("BasePart") or v:IsA("MeshPart") then
-        v.CanCollide = false
-        v.Transparency = 1
-    end
-end
-BodyClone.HumanoidRootPart.Transparency = 1
-BodyClone.HumanoidRootPart.Velocity = Vector3.zero
-BodyClone.HumanoidRootPart.CFrame = CFrame.new(9999, 9999, 9999)
+-- ИНТЕГРАЦИЯ ЭЛЕМЕНТОВ УПРАВЛЕНИЯ В МЕНЮ MATCHA (LINORIA)
+local MainGroup = Tabs.Main:AddLeftGroupbox('TargetAim & KillAura')
 
-local BodyCloneHighlight = Instance.new("Highlight")
-BodyCloneHighlight.Enabled = false
-BodyCloneHighlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-BodyCloneHighlight.FillColor = Color3.fromRGB(0, 255, 0)
-BodyCloneHighlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-BodyCloneHighlight.FillTransparency = 0.3
-BodyCloneHighlight.OutlineTransparency = 0
-BodyCloneHighlight.Adornee = BodyClone
-BodyCloneHighlight.Parent = BodyClone
-
-local GlowLight = Instance.new("PointLight")
-GlowLight.Color = Color3.fromRGB(255, 255, 255)
-GlowLight.Brightness = 4
-GlowLight.Range = 4
-GlowLight.Parent = BodyClone.HumanoidRootPart
-
-local DesyncLine = Drawing.new("Line")
-DesyncLine.Thickness = 2
-DesyncLine.Color = Color3.fromRGB(255, 255, 255)
-DesyncLine.Visible = false
-DesyncLine.Transparency = 1
-
-local tracerOutline = Drawing.new("Line")
-tracerOutline.Visible = false
-tracerOutline.Color = matchacc.TargetAim.TracerOutlineColor
-tracerOutline.Thickness = 4
-
-local tracer = Drawing.new("Line")
-tracer.Visible = false
-tracer.Color = matchacc.TargetAim.TracerFillColor
-tracer.Thickness = 2
-
-local ka_tracer = Instance.new("Part")
-ka_tracer.Size = Vector3.new(0.2, 0.2, 0.2)
-ka_tracer.Material = Enum.Material.Neon
-ka_tracer.Color = Color3.fromRGB(255, 255, 255)
-ka_tracer.Transparency = 1
-ka_tracer.Anchored = true
-ka_tracer.CanCollide = false
-ka_tracer.Parent = workspace
-
-local TweenService = game:GetService("TweenService")
-
-local HitChams = LPH_NO_VIRTUALIZE(function(Player)
-    if not matchacc.HitEffects.HitChams.Enabled then return end  
-    if Player and Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
-        Player.Character.Archivable = true
-        local Cloned = Player.Character:Clone()
-        Cloned.Name = "Player Clone"
-        local BodyParts = { "Head", "UpperTorso", "LowerTorso", "LeftUpperArm", "LeftLowerArm", "LeftHand", "RightUpperArm", "RightLowerArm", "RightHand", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot" }
-        for _, Part in ipairs(Cloned:GetChildren()) do
-            if Part:IsA("BasePart") then
-                local PartValid = false
-                for _, validPart in ipairs(BodyParts) do
-                    if Part.Name == validPart then
-                        PartValid = true
-                        break
-                    end
-                end
-                if not PartValid then
-                    Part:Destroy()
-                end
-            elseif Part:IsA("Accessory") or Part:IsA("Tool") or Part.Name == "face" or Part:IsA("Shirt") or Part:IsA("Pants") or Part:IsA("Hat") then
-                Part:Destroy()
-            end
-        end
-        if Cloned:FindFirstChild("Humanoid") then
-            Cloned.Humanoid:Destroy()
-        end
-        for _, BodyPart in ipairs(Cloned:GetChildren()) do
-            if BodyPart:IsA("BasePart") then
-                BodyPart.CanCollide = false
-                BodyPart.Anchored = true
-                BodyPart.Transparency = matchacc.HitEffects.HitChams.Transparency
-                BodyPart.Color = matchacc.HitEffects.HitChams.Color
-                BodyPart.Material = matchacc.HitEffects.HitChams.Material
-            end
-        end
-        if Cloned:FindFirstChild("Head") then
-            local Head = Cloned.Head
-            Head.Transparency = matchacc.HitEffects.HitChams.Transparency
-            Head.Color = matchacc.HitEffects.HitChams.Color
-            Head.Material = matchacc.HitEffects.HitChams.Material
-            if Head:FindFirstChild("face") then
-                Head.face:Destroy()
-            end
-        end
-        Cloned.Parent = game.Workspace
-        local tweenInfo = TweenInfo.new(
-            matchacc.HitEffects.HitChams.Lifetime,
-            Enum.EasingStyle.Sine,
-            Enum.EasingDirection.InOut,
-            0,
-            true
-        )
-        for _, BodyPart in ipairs(Cloned:GetChildren()) do
-            if BodyPart:IsA("BasePart") then
-                local tween = TweenService:Create(BodyPart, tweenInfo, { Transparency = 1 })
-                tween:Play()
-            end
-        end
-        task.delay(matchacc.HitEffects.HitChams.Lifetime, function()
-            if Cloned and Cloned.Parent then
-                Cloned:Destroy()
-            end
-        end)
-    end
-end)
-
-local HitChamsSkeleton = LPH_NO_VIRTUALIZE(function(Player)
-    if not matchacc.HitEffects.HitSkeleton.Enabled then return end  
-    if Player and Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
-        local bones = {
-            {"Head", "UpperTorso"},
-            {"UpperTorso", "LowerTorso"},
-            {"UpperTorso", "RightUpperArm"},
-            {"RightUpperArm", "RightLowerArm"},
-            {"RightLowerArm", "RightHand"},
-            {"UpperTorso", "LeftUpperArm"},
-            {"LeftUpperArm", "LeftLowerArm"},
-            {"LeftLowerArm", "LeftHand"},
-            {"LowerTorso", "RightUpperLeg"},
-            {"RightUpperLeg", "RightLowerLeg"},
-            {"RightLowerLeg", "RightFoot"},
-            {"LowerTorso", "LeftUpperLeg"},
-            {"LeftUpperLeg", "LeftLowerLeg"},
-            {"LeftLowerLeg", "LeftFoot"}
-        }
-        local lines = {}
-        for _, bonePair in ipairs(bones) do
-            local parentBone = Player.Character:FindFirstChild(bonePair[1])
-            local childBone = Player.Character:FindFirstChild(bonePair[2])
-            if parentBone and childBone then
-                local line = Instance.new("Part")
-                line.Size = Vector3.new(0.02, 0.02, (parentBone.Position - childBone.Position).Magnitude)
-                line.CFrame = CFrame.new(parentBone.Position, childBone.Position) * CFrame.new(0, 0, -line.Size.Z / 2)
-                line.Anchored = true
-                line.CanCollide = false
-                line.Transparency = matchacc.HitEffects.HitChams.Transparency  
-                line.Color = matchacc.HitEffects.HitSkeleton.Color  
-                line.Material = Enum.Material.Neon
-                line.Parent = workspace
-                local tweenInfo = TweenInfo.new(matchacc.HitEffects.HitChams.Lifetime / 0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
-                local tween = TweenService:Create(line, tweenInfo, {Transparency = 1})
-                tween:Play()
-                table.insert(lines, line)
-            end
-        end
-        task.delay(matchacc.HitEffects.HitChams.Lifetime, function()
-            for _, line in ipairs(lines) do
-                if line and line.Parent then
-                    line:Destroy()
-                end
-            end
-        end)
-    end
-end)
-
-local FOVCircleEnabled = false
-local FOVCircleSize = 300
-local FOVInnerColor = Color3.fromRGB(255, 255, 255)
-local GradientFillEnabled = false
-local GradientColor1 = Color3.fromRGB(255, 255, 255)
-local GradientColor2 = Color3.fromRGB(0, 0, 0)
-local FillTransparency = 0.5
-
-local InnerCircle = Drawing.new("Circle")
-InnerCircle.Visible = false
-InnerCircle.Thickness = 1
-InnerCircle.NumSides = 64
-InnerCircle.Filled = false
-InnerCircle.Color = FOVInnerColor
-InnerCircle.Radius = FOVCircleSize
-InnerCircle.ZIndex = 10001
-
-local FillCircle = Drawing.new("Circle")
-FillCircle.Visible = false
-FillCircle.Filled = true
-FillCircle.Transparency = FillTransparency
-FillCircle.NumSides = 64
-FillCircle.Radius = FOVCircleSize
-FillCircle.Color = GradientColor1 
-FillCircle.ZIndex = 10001
-
-local players = game:GetService("Players")
-local Players = game:GetService("Players")
-local localPlayer = players.LocalPlayer
-local LocalPlayer = Players.LocalPlayer
-local RunService = game:GetService("RunService")
-local ReplicatedStorage = game:GetService('ReplicatedStorage')
-local UserInputService = game:GetService("UserInputService")
-local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-
-local function GetClosestCharacter()
-    local closestDist = math.huge
-    local closestPlayer = nil
-
-    local mousePos
-    if UserInputService.TouchEnabled and not UserInputService.MouseEnabled then
-        mousePos = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-    else
-        mousePos = UserInputService:GetMouseLocation()
-    end
-
-    for _, player in pairs(players:GetPlayers()) do
-        if player == localPlayer then continue end
-
-        local char = player.Character
-        if not char or not char:FindFirstChild("Head") or not char:FindFirstChild("HumanoidRootPart") then continue end
-        if not isAlive(player) and matchacc.Checks.Alive then continue end
-        if matchacc.Checks.Team and player.Team == localPlayer.Team then continue end
-        if matchacc.Checks.Forcefield and player.Character:FindFirstChildWhichIsA("ForceField") then continue end
-
-        local headPos, onScreen = Camera:WorldToViewportPoint(char.Head.Position)
-        local screenPos = Vector2.new(headPos.X, headPos.Y)
-        local dist = (screenPos - mousePos).Magnitude
-
-        if FOVCircleEnabled and dist > FOVCircleSize then
-            continue
-        end
-
-        local isVisible = true
-        if matchacc.Checks.Wall then
-            local raycastParams = RaycastParams.new()
-            raycastParams.FilterDescendantsInstances = {localPlayer.Character}
-            raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
-            
-            local result = workspace:Raycast(Camera.CFrame.Position, char.Head.Position - Camera.CFrame.Position, raycastParams)
-            if result and result.Instance and not result.Instance:IsDescendantOf(char) then
-                isVisible = false
-            end
-        end
-
-        if onScreen and isVisible and dist < closestDist then
-            closestDist = dist
-            closestPlayer = player
-        end
-    end
-
-    return closestPlayer
-end
-
--- Основные вкладки UI и хитбоксы
-local HitboxGroup = Tabs.Main:AddRightGroupbox('Hitbox Expander')
-
-HitboxGroup:AddToggle('HitboxEnabled', {
-    Text = 'Enabled',
+MainGroup:AddToggle('TargetAimEnabled', {
+    Text = 'TargetAim Enabled',
     Default = false,
     Callback = function(Value)
-        matchacc.HitboxExpander.Enabled = Value
+        matchacc.TargetAim.Enabled = Value
     end
 })
 
-HitboxGroup:AddToggle('HitboxVisualize', {
-    Text = 'Visualize',
-    Default = false,
+MainGroup:AddDropdown('TargetAimHitPart', {
+    Values = {'Head', 'HumanoidRootPart', 'UpperTorso'},
+    Default = 1,
+    Text = 'Hit Part',
     Callback = function(Value)
-        matchacc.HitboxExpander.Visualize = Value
-    end
-}):AddColorPicker('HitboxColor', {
-    Default = matchacc.HitboxExpander.Color,
-    Title = 'Fill Color',
-    Callback = function(Value)
-        matchacc.HitboxExpander.Color = Value
-    end
-}):AddColorPicker('HitboxOutlineColor', {
-    Default = matchacc.HitboxExpander.OutlineColor,
-    Title = 'Outline Color',
-    Callback = function(Value)
-        matchacc.HitboxExpander.OutlineColor = Value
+        matchacc.TargetAim.HitPart = Value
     end
 })
 
-HitboxGroup:AddSlider('HitboxSize', {
-    Text = 'Size',
-    Default = matchacc.HitboxExpander.Size,
-    Min = 2,
-    Max = 50,
+MainGroup:AddToggle('KillAuraEnabled', {
+    Text = 'KillAura Enabled',
+    Default = false,
+    Callback = function(Value)
+        matchacc.KillAura.Enabled = Value
+    end
+})
+
+MainGroup:AddSlider('KillAuraRange', {
+    Text = 'KillAura Range',
+    Default = 250,
+    Min = 50,
+    Max = 500,
     Rounding = 0,
     Callback = function(Value)
-        matchacc.HitboxExpander.Size = Value
+        matchacc.KillAura.Range = Value
     end
 })
 
-HitboxGroup:AddSlider('HitboxFillTrans', {
-    Text = 'Fill Transparency',
-    Default = matchacc.HitboxExpander.FillTransparency,
-    Min = 0,
-    Max = 1,
-    Rounding = 2,
+-- Вкладка визуальных функций (ESP/Chams)
+local VisualGroup = Tabs.Visual:AddLeftGroupbox('Visuals / Effects')
+VisualGroup:AddToggle('HitChamsEnabled', {
+    Text = 'Hit Chams',
+    Default = false,
     Callback = function(Value)
-        matchacc.HitboxExpander.FillTransparency = Value
+        matchacc.HitEffects.HitChams.Enabled = Value
     end
 })
 
-HitboxGroup:AddSlider('HitboxOutlineTrans', {
-    Text = 'Outline Transparency',
-    Default = matchacc.HitboxExpander.OutlineTransparency,
-    Min = 0,
-    Max = 1,
-    Rounding = 2,
+VisualGroup:AddToggle('HitSkeletonEnabled', {
+    Text = 'Hit Skeleton',
+    Default = false,
     Callback = function(Value)
-        matchacc.HitboxExpander.OutlineTransparency = Value
+        matchacc.HitEffects.HitSkeleton.Enabled = Value
     end
 })
+
+Library:Notify("Matcha.cc loaded successfully!", 5)
