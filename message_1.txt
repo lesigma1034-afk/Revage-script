@@ -235,33 +235,51 @@ local Players, Client, RS, Camera =
 
 local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
-local CurrentCamera = Workspace.CurrentCamera
 
-game.Lighting.GlobalShadows = not KeanW.Main.DisableShadows
+pcall(function()
+    game.Lighting.GlobalShadows = not KeanW.Main.DisableShadows
+end)
 
-local Circle = Drawing.new("Circle")
-Circle.Color = Color3.fromRGB(0, 128, 128)
-Circle.Thickness = 1
+local Circle = nil
+pcall(function()
+    if Drawing then
+        Circle = Drawing.new("Circle")
+        Circle.Color = Color3.fromRGB(0, 128, 128)
+        Circle.Thickness = 1
+    end
+end)
 
 local function GetTouchCenter()
     return Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
 end
 
-local UpdateFOV = function ()
-    if (not Circle) then return Circle end
-    Circle.Visible = KeanW.FOV["Visible"]
-    Circle.Radius = KeanW.FOV["Radius"] * 3
-    Circle.Position = GetTouchCenter()
-    return Circle
-end
-RS.Heartbeat:Connect(UpdateFOV)
+RS.Heartbeat:Connect(function()
+    if Circle then
+        pcall(function()
+            Circle.Visible = KeanW.FOV["Visible"]
+            Circle.Radius = KeanW.FOV["Radius"] * 3
+            Circle.Position = GetTouchCenter()
+        end)
+    end
+end)
 
--- НАДЕЖНОЕ МОБИЛЬНОЕ GUI (С высоким приоритетом отображения)
+-- ГАРАНТИРОВАННОЕ СОЗДАНИЕ GUI (С защитой от сбоев)
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "KeanWMobileMenu"
-ScreenGui.Parent = game.CoreGui
 ScreenGui.ResetOnSpawn = false
-ScreenGui.DisplayOrder = 999999 -- Чтобы меню было поверх всех элементов игры и экзекутора
+ScreenGui.DisplayOrder = 999999
+
+pcall(function()
+    if gethui then
+        ScreenGui.Parent = gethui()
+    else
+        ScreenGui.Parent = game:GetService("CoreGui")
+    end
+end)
+
+if not ScreenGui.Parent then
+    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+end
 
 local ToggleButton = Instance.new("TextButton")
 ToggleButton.Name = "ToggleMenuBtn"
@@ -314,9 +332,13 @@ local function CreateMobileButton(name, defaultState, callback)
     end)
 end
 
-ToggleButton.Activated:Connect(function()
+-- Обработка нажатия на кнопку открытия (дублируем Activated и MouseButton1Click для надежности)
+local function ToggleWindow()
     MainFrame.Visible = not MainFrame.Visible
-end)
+end
+
+ToggleButton.Activated:Connect(ToggleWindow)
+ToggleButton.MouseButton1Click:Connect(ToggleWindow)
 
 CreateMobileButton("Silent Aim", KeanW.Silent.Enabled, function(state)
     KeanW.Silent.Enabled = state
@@ -349,8 +371,14 @@ CreateMobileButton("Inventory Sorter", false, function(state)
     end
 end)
 
--- Мобильный ESP через BillboardGui
-local espf = Instance.new("Folder", game.CoreGui)
+-- Мобильный ESP
+local espf = Instance.new("Folder")
+pcall(function()
+    espf.Parent = gethui() or game:GetService("CoreGui")
+end)
+if not espf.Parent then
+    espf.Parent = LocalPlayer:WaitForChild("PlayerGui")
+end
 espf.Name = "MobileESP"
 
 local function addEsp(player)
@@ -383,4 +411,4 @@ for _, p in pairs(Players:GetPlayers()) do
 end
 Players.PlayerAdded:Connect(addEsp)
 
-print("KeanW Mobile Menu Loaded Successfully!")
+print("KeanW Mobile Loaded Successfully!")
