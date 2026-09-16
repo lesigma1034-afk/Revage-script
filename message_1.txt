@@ -9,8 +9,8 @@ getgenv().KeanW = {
         ["MuteBoomBox"] = true,
     },
     Silent = {
-        ["Enabled"] = true,
-        ["UseKeybind"] = false, -- На мобилке лучше через GUI
+        ["Enabled"] = true, 
+        ["UseKeybind"] = false,
         ["Keybind"] = "k",
         ["Part"] = "HumanoidRootPart",
         ["Prediction"] = 0.136,
@@ -137,7 +137,7 @@ getgenv().KeanW = {
         ["Enabled"] = true,
         ["Interval"] = 0.2,
         ["Silent"] = {
-            ["Enabled"] = true,
+            ["Enabled"] = false,
             ["P10"] = 0.11,
             ["P20"] = 0.12588,
             ["P30"] = 0.11911,
@@ -234,34 +234,15 @@ local Players, Client, RS, Camera =
     game.Workspace.CurrentCamera
 
 local Workspace = game:GetService("Workspace")
-local GuiService = game:GetService("GuiService")
 local LocalPlayer = Players.LocalPlayer
 local CurrentCamera = Workspace.CurrentCamera
-local WorldToViewportPoint = CurrentCamera.WorldToViewportPoint
-local RaycastParamsnew = RaycastParams.new
-local EnumRaycastFilterTypeBlacklist = Enum.RaycastFilterType.Blacklist
-local Raycast = Workspace.Raycast
-local IsDescendantOf = Instance.new("Part").IsDescendantOf
+
+game.Lighting.GlobalShadows = not KeanW.Main.DisableShadows
 
 local Circle = Drawing.new("Circle")
 Circle.Color = Color3.fromRGB(0, 128, 128)
 Circle.Thickness = 1
 
-game.Lighting.GlobalShadows = not KeanW.Main.DisableShadows
-
-if KeanW.Main.MuteBoomBox == true then 
-    for _, v in pairs(game.Players:GetChildren()) do 
-        if v.Name ~= Client.Name and v.Character then 
-            for _, x in pairs(v.Character:GetDescendants()) do
-                if x:IsA("Sound") and x.Playing == true then
-                    x.Playing = false
-                end
-            end
-        end
-    end
-end
-
--- Мобильный центр экрана для эмуляции прицела
 local function GetTouchCenter()
     return Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
 end
@@ -275,134 +256,7 @@ local UpdateFOV = function ()
 end
 RS.Heartbeat:Connect(UpdateFOV)
 
-if KeanW.Main.AutoLowGFX then
-    for _, v in pairs(workspace:GetDescendants()) do
-        if v:IsA("Part") or v:IsA("SpawnLocation") or v:IsA("WedgePart") or v:IsA("Terrain") or v:IsA("MeshPart") then
-            v.Material = "Plastic"
-        end
-    end
-end
-
-function IsPartVisible(Part, PartDescendant)
-    local Character = LocalPlayer.Character
-    if not Character then return false end
-    local Origin = CurrentCamera.CFrame.Position
-    local _, OnScreen = WorldToViewportPoint(CurrentCamera, Part.Position)
-
-    if (OnScreen) then
-        local raycastParams = RaycastParamsnew()
-        raycastParams.FilterType = EnumRaycastFilterTypeBlacklist
-        raycastParams.FilterDescendantsInstances = {Character, CurrentCamera}
-        local Result = Raycast(Workspace, Origin, Part.Position - Origin, raycastParams)
-        if (Result) then
-            local PartHit = Result.Instance
-            return (not PartHit or IsDescendantOf(PartHit, PartDescendant))
-        end
-    end
-    return false
-end
-
-ClosestPlrFromMouse = function()
-    local Target, Closest = nil, math.huge
-    local ScreenCenter = GetTouchCenter()
- 
-    for _, v in pairs(Players:GetPlayers()) do
-        if (v.Character and v ~= Client and v.Character:FindFirstChild("HumanoidRootPart")) then
-            local Position, OnScreen = Camera:WorldToScreenPoint(v.Character.HumanoidRootPart.Position)
-            local Distance = (Vector2.new(Position.X, Position.Y) - ScreenCenter).Magnitude
-
-            if (Circle.Radius > Distance and Distance < Closest and OnScreen) then
-                Closest = Distance
-                Target = v
-            end
-        end
-    end
-    return Target
-end
-
-local WTS = function (Object)
-    local ObjectVector = Camera:WorldToScreenPoint(Object.Position)
-    return Vector2.new(ObjectVector.X, ObjectVector.Y)
-end
-
-local IsOnScreen = function (Object)
-    return Camera:WorldToScreenPoint(Object.Position)
-end
-
-local FilterObjs = function (Object)
-    if string.find(Object.Name, "Gun") then return end
-    if table.find({"Part", "MeshPart", "BasePart"}, Object.ClassName) then
-        return true
-    end
-end
-
-local GetClosestBodyPart = function (character)
-    local ClosestDistance = math.huge
-    local BodyPart = nil
-    local ScreenCenter = GetTouchCenter()
-    if (character and character:GetChildren()) then
-        for _, x in next, character:GetChildren() do
-            if FilterObjs(x) and IsOnScreen(x) then
-                local Distance = (WTS(x) - ScreenCenter).Magnitude
-                if (Circle.Radius > Distance and Distance < ClosestDistance) then
-                    ClosestDistance = Distance
-                    BodyPart = x
-                end
-            end
-        end
-    end
-    return BodyPart
-end
-
-local Prey
-
-task.spawn(function ()
-    while task.wait() do
-        if Prey and KeanW.Silent.Enabled and KeanW.Silent.ClosestPart == true then
-            if Prey.Character then
-                KeanW.Silent["Part"] = tostring(GetClosestBodyPart(Prey.Character))
-            end
-        end
-    end
-end)
-
-local grmt = getrawmetatable(game)
-local backupindex = grmt.__index
-setreadonly(grmt, false)
-
-grmt.__index = newcclosure(function(self, v)
-    if (KeanW.Silent.Enabled and tostring(v) == "Hit") then
-        Prey = ClosestPlrFromMouse()
-        if Prey and Prey.Character and Prey.Character:FindFirstChild(KeanW.Silent["Part"]) then
-            local endpoint = Prey.Character[KeanW.Silent["Part"]].CFrame + (
-                Prey.Character[KeanW.Silent["Part"]].Velocity * KeanW.Silent.Prediction
-            )
-            return endpoint
-        end
-    end
-    return backupindex(self, v)
-end)
-
--- Авто-определение пина для предикшна
-RS.Heartbeat:Connect(function() 
-    if KeanW.AutoPred.Enabled then
-        local pingStats = game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValueString()
-        local pingValue = string.split(pingStats, " ")[1]
-        local pingNumber = tonumber(pingValue) or 50
-        
-        if KeanW.AutoPred.Silent.Enabled == true then
-            if pingNumber > 200 then
-                KeanW.Silent.Prediction = KeanW.AutoPred.Silent.P200
-            elseif pingNumber > 100 then
-                KeanW.Silent.Prediction = KeanW.AutoPred.Silent.P100
-            else
-                KeanW.Silent.Prediction = KeanW.AutoPred.Silent.P50
-            end
-        end
-    end
-end)
-
--- СОЗДАНИЕ МОБИЛЬНОГО GUI (Кнопки управления для телефонов)
+-- СОЗДАНИЕ МОБИЛЬНОГО GUI (С исправлениями под тач-скрин)
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "KeanWMobile"
 ScreenGui.Parent = game.CoreGui
@@ -449,7 +303,8 @@ local function CreateMobileButton(name, defaultState, callback)
     Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
     Btn.TextSize = 14
 
-    Btn.MouseButton1Click:Connect(function()
+    -- Использование .Activated вместо MouseButton1Click для мобилок
+    Btn.Activated:Connect(function()
         defaultState = not defaultState
         Btn.Text = name .. ": " .. (defaultState and "ON" or "OFF")
         Btn.BackgroundColor3 = defaultState and Color3.fromRGB(0, 150, 75) or Color3.fromRGB(50, 50, 50)
@@ -457,21 +312,13 @@ local function CreateMobileButton(name, defaultState, callback)
     end)
 end
 
-ToggleButton.MouseButton1Click:Connect(function()
+-- Использование .Activated для кнопки меню
+ToggleButton.Activated:Connect(function()
     MainFrame.Visible = not MainFrame.Visible
-end)
-
--- Добавление кнопок в мобильное меню
-CreateMobileButton("Silent Aim", KeanW.Silent.Enabled, function(state)
-    KeanW.Silent.Enabled = state
 end)
 
 CreateMobileButton("FOV Circle", KeanW.FOV.Visible, function(state)
     KeanW.FOV.Visible = state
-end)
-
-CreateMobileButton("Auto Prediction", KeanW.AutoPred.Enabled, function(state)
-    KeanW.AutoPred.Enabled = state
 end)
 
 CreateMobileButton("ESP Players", KeanW.Esp.Enabled, function(state)
@@ -482,7 +329,6 @@ CreateMobileButton("Memory Spoofer", KeanW.MemorySpoofer.MemSpoofer, function(st
     KeanW.MemorySpoofer.MemSpoofer = state
 end)
 
--- Инвентарь сортер по кнопке в меню
 CreateMobileButton("Inventory Sorter", false, function(state)
     if state and KeanW.InventorySorter.Enabled then
         local backpack = LocalPlayer.Backpack
@@ -498,7 +344,7 @@ CreateMobileButton("Inventory Sorter", false, function(state)
     end
 end)
 
--- Простенький ESP для мобилок
+-- Мобильный ESP через BillboardGui
 local espf = Instance.new("Folder", game.CoreGui)
 espf.Name = "MobileESP"
 
