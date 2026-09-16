@@ -7,6 +7,7 @@ _G.CociteRunning = true
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
@@ -30,7 +31,7 @@ local Settings = {
 
 local function IsWhitelisted(player)
     for _, name in ipairs(Settings.Whitelist) do
-        if string.lower(name) == string.lower(player.Name) then
+        if string.lower(name) == string.lower(player.Name) or string.lower(name) == string.lower(player.DisplayName) then
             return true
         end
     end
@@ -40,7 +41,6 @@ end
 local function IsValidTarget(player)
     if player == LocalPlayer or not player.Character then return false end
     if IsWhitelisted(player) then return false end
-    
     local char = player.Character
     local humanoid = char:FindFirstChild("Humanoid")
     local hrp = char:FindFirstChild("HumanoidRootPart")
@@ -376,186 +376,174 @@ AimFloatBtn.Active = true
 AimFloatBtn.Draggable = true
 Instance.new("UICorner", AimFloatBtn).CornerRadius = UDim.new(0, 10)
 
--- // FOV SETTINGS FRAME (GEAR)
-local FovFrame = Instance.new("Frame", ScreenGui)
-FovFrame.BackgroundColor3 = Color3.fromRGB(12, 10, 20)
-FovFrame.Position = UDim2.new(0.5, -120, 0.5, -70)
-FovFrame.Size = UDim2.new(0, 240, 0, 140)
-FovFrame.Visible = false
-FovFrame.Active = true
-FovFrame.Draggable = true
-Instance.new("UICorner", FovFrame).CornerRadius = UDim.new(0, 12)
-local FovStroke = Instance.new("UIStroke", FovFrame)
-FovStroke.Color = Color3.fromRGB(140, 40, 255)
-FovStroke.Thickness = 2
+-- // UNIFIED SETTINGS FRAME (одна шестерёнка: FOV + Whitelist)
+local SettingsFrame = Instance.new("Frame", ScreenGui)
+SettingsFrame.Name = "CociteSettings"
+SettingsFrame.BackgroundColor3 = Color3.fromRGB(12, 10, 20)
+SettingsFrame.Position = UDim2.new(0.5, -140, 0.5, -120)
+SettingsFrame.Size = UDim2.new(0, 280, 0, 240)
+SettingsFrame.Visible = false
+SettingsFrame.Active = true
+SettingsFrame.Draggable = true
+Instance.new("UICorner", SettingsFrame).CornerRadius = UDim.new(0, 12)
+local SetStroke = Instance.new("UIStroke", SettingsFrame)
+SetStroke.Color = Color3.fromRGB(140, 40, 255)
+SetStroke.Thickness = 2
 
-local FovTitle = Instance.new("TextLabel", FovFrame)
-FovTitle.BackgroundTransparency = 1
-FovTitle.Position = UDim2.new(0, 10, 0, 10)
-FovTitle.Size = UDim2.new(1, -20, 0, 20)
-FovTitle.Font = Enum.Font.GothamBold
-FovTitle.Text = "⚙️ FOV SETTINGS"
-FovTitle.TextColor3 = Color3.fromRGB(210, 160, 255)
-FovTitle.TextSize = 12
-FovTitle.TextXAlignment = Enum.TextXAlignment.Left
+local SetTitle = Instance.new("TextLabel", SettingsFrame)
+SetTitle.BackgroundTransparency = 1
+SetTitle.Position = UDim2.new(0, 12, 0, 8)
+SetTitle.Size = UDim2.new(1, -44, 0, 22)
+SetTitle.Font = Enum.Font.GothamBold
+SetTitle.Text = "⚙️ AIM SETTINGS"
+SetTitle.TextColor3 = Color3.fromRGB(210, 160, 255)
+SetTitle.TextSize = 13
+SetTitle.TextXAlignment = Enum.TextXAlignment.Left
 
-local FovSlider = Instance.new("Frame", FovFrame)
-FovSlider.BackgroundColor3 = Color3.fromRGB(26, 20, 40)
-FovSlider.Position = UDim2.new(0, 15, 0, 45)
-FovSlider.Size = UDim2.new(1, -30, 0, 10)
-Instance.new("UICorner", FovSlider).CornerRadius = UDim.new(1, 0)
+local SetClose = Instance.new("TextButton", SettingsFrame)
+SetClose.BackgroundColor3 = Color3.fromRGB(220, 45, 65)
+SetClose.Position = UDim2.new(1, -30, 0, 8)
+SetClose.Size = UDim2.new(0, 22, 0, 22)
+SetClose.Font = Enum.Font.GothamBold
+SetClose.Text = "✕"
+SetClose.TextColor3 = Color3.fromRGB(255, 255, 255)
+SetClose.TextSize = 11
+Instance.new("UICorner", SetClose).CornerRadius = UDim.new(0, 6)
+SetClose.MouseButton1Click:Connect(function()
+    SettingsFrame.Visible = false
+end)
 
-local FovFill = Instance.new("Frame", FovSlider)
+local FovLabel = Instance.new("TextLabel", SettingsFrame)
+FovLabel.BackgroundTransparency = 1
+FovLabel.Position = UDim2.new(0, 12, 0, 36)
+FovLabel.Size = UDim2.new(1, -24, 0, 16)
+FovLabel.Font = Enum.Font.GothamSemibold
+FovLabel.Text = "FOV Radius: " .. tostring(Settings.Aimbot.FOV)
+FovLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+FovLabel.TextSize = 11
+FovLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local FovSliderBg = Instance.new("Frame", SettingsFrame)
+FovSliderBg.BackgroundColor3 = Color3.fromRGB(26, 20, 40)
+FovSliderBg.Position = UDim2.new(0, 12, 0, 56)
+FovSliderBg.Size = UDim2.new(1, -24, 0, 10)
+Instance.new("UICorner", FovSliderBg).CornerRadius = UDim.new(1, 0)
+
+local FovFill = Instance.new("Frame", FovSliderBg)
 FovFill.BackgroundColor3 = Color3.fromRGB(110, 25, 200)
-FovFill.Size = UDim2.new(Settings.Aimbot.FOV / 1000, 0, 1, 0)
+FovFill.Size = UDim2.new(math.clamp(Settings.Aimbot.FOV / 1000, 0, 1), 0, 1, 0)
 Instance.new("UICorner", FovFill).CornerRadius = UDim.new(1, 0)
 
-local FovValueLabel = Instance.new("TextLabel", FovFrame)
-FovValueLabel.BackgroundTransparency = 1
-FovValueLabel.Position = UDim2.new(0, 15, 0, 65)
-FovValueLabel.Size = UDim2.new(1, -30, 0, 20)
-FovValueLabel.Font = Enum.Font.GothamSemibold
-FovValueLabel.Text = "Radius: " .. tostring(Settings.Aimbot.FOV)
-FovValueLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-FovValueLabel.TextSize = 11
-FovValueLabel.TextXAlignment = Enum.TextXAlignment.Left
-
 local draggingFov = false
-FovSlider.InputBegan:Connect(function(input)
+
+local function SetFovFromPointer(xPos)
+    local relX = math.clamp((xPos - FovSliderBg.AbsolutePosition.X) / FovSliderBg.AbsoluteSize.X, 0, 1)
+    local newFov = math.floor(relX * 1000)
+    Settings.Aimbot.FOV = newFov
+    FovFill.Size = UDim2.new(relX, 0, 1, 0)
+    FovLabel.Text = "FOV Radius: " .. tostring(newFov)
+end
+
+FovSliderBg.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         draggingFov = true
+        SetFovFromPointer(input.Position.X)
     end
 end)
-FovSlider.InputEnded:Connect(function(input)
+
+UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         draggingFov = false
     end
 end)
-RunService.RenderStepped:Connect(function()
-    if draggingFov then
-        local mousePos = UserInputService and UserInputService:GetMouseLocation() or Vector2.new(0,0)
-        if not UserInputService then
-            pcall(function() UserInputService = game:GetService("UserInputService") end)
-        end
-        local relX = math.clamp((mousePos.X - FovSlider.AbsolutePosition.X) / FovSlider.AbsoluteSize.X, 0, 1)
-        local newFov = math.floor(relX * 1000)
-        Settings.Aimbot.FOV = newFov
-        FovFill.Size = UDim2.new(relX, 0, 1, 0)
-        FovValueLabel.Text = "Radius: " .. tostring(newFov)
+
+UserInputService.InputChanged:Connect(function(input)
+    if draggingFov and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        SetFovFromPointer(input.Position.X)
     end
 end)
 
-local FovCloseBtn = Instance.new("TextButton", FovFrame)
-FovCloseBtn.BackgroundColor3 = Color3.fromRGB(220, 45, 65)
-FovCloseBtn.Position = UDim2.new(1, -30, 0, 8)
-FovCloseBtn.Size = UDim2.new(0, 22, 0, 22)
-FovCloseBtn.Font = Enum.Font.GothamBold
-FovCloseBtn.Text = "✕"
-FovCloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-FovCloseBtn.TextSize = 11
-Instance.new("UICorner", FovCloseBtn).CornerRadius = UDim.new(0, 6)
-FovCloseBtn.MouseButton1Click:Connect(function() FovFrame.Visible = false end)
+local WlHeader = Instance.new("TextLabel", SettingsFrame)
+WlHeader.BackgroundTransparency = 1
+WlHeader.Position = UDim2.new(0, 12, 0, 76)
+WlHeader.Size = UDim2.new(1, -24, 0, 16)
+WlHeader.Font = Enum.Font.GothamSemibold
+WlHeader.Text = "🛡️ Whitelist (aim игнорирует этих игроков)"
+WlHeader.TextColor3 = Color3.fromRGB(210, 160, 255)
+WlHeader.TextSize = 11
+WlHeader.TextXAlignment = Enum.TextXAlignment.Left
 
--- // WHITELIST FRAME (SHIELD)
-local WlFrame = Instance.new("Frame", ScreenGui)
-WlFrame.BackgroundColor3 = Color3.fromRGB(12, 10, 20)
-WlFrame.Position = UDim2.new(0.5, -130, 0.5, -100)
-WlFrame.Size = UDim2.new(0, 260, 0, 200)
-WlFrame.Visible = false
-WlFrame.Active = true
-WlFrame.Draggable = true
-Instance.new("UICorner", WlFrame).CornerRadius = UDim.new(0, 12)
-local WlStroke = Instance.new("UIStroke", WlFrame)
-WlStroke.Color = Color3.fromRGB(140, 40, 255)
-WlStroke.Thickness = 2
-
-local WlTitle = Instance.new("TextLabel", WlFrame)
-WlTitle.BackgroundTransparency = 1
-WlTitle.Position = UDim2.new(0, 10, 0, 10)
-WlTitle.Size = UDim2.new(1, -20, 0, 20)
-WlTitle.Font = Enum.Font.GothamBold
-WlTitle.Text = "🛡️ WHITELIST"
-WlTitle.TextColor3 = Color3.fromRGB(210, 160, 255)
-WlTitle.TextSize = 12
-WlTitle.TextXAlignment = Enum.TextXAlignment.Left
-
-local WlInput = Instance.new("TextBox", WlFrame)
+local WlInput = Instance.new("TextBox", SettingsFrame)
 WlInput.BackgroundColor3 = Color3.fromRGB(26, 20, 40)
-WlInput.Position = UDim2.new(0, 10, 0, 40)
-WlInput.Size = UDim2.new(1, -80, 0, 28)
+WlInput.Position = UDim2.new(0, 12, 0, 96)
+WlInput.Size = UDim2.new(1, -72, 0, 28)
 WlInput.Font = Enum.Font.GothamSemibold
-WlInput.PlaceholderText = "Nickname..."
+WlInput.PlaceholderText = "Ник друга..."
 WlInput.Text = ""
 WlInput.TextColor3 = Color3.fromRGB(255, 255, 255)
 WlInput.PlaceholderColor3 = Color3.fromRGB(100, 90, 120)
 WlInput.TextSize = 11
 Instance.new("UICorner", WlInput).CornerRadius = UDim.new(0, 6)
 
-local WlAddBtn = Instance.new("TextButton", WlFrame)
+local WlAddBtn = Instance.new("TextButton", SettingsFrame)
 WlAddBtn.BackgroundColor3 = Color3.fromRGB(110, 25, 200)
-WlAddBtn.Position = UDim2.new(1, -60, 0, 40)
-WlAddBtn.Size = UDim2.new(0, 50, 0, 28)
+WlAddBtn.Position = UDim2.new(1, -52, 0, 96)
+WlAddBtn.Size = UDim2.new(0, 40, 0, 28)
 WlAddBtn.Font = Enum.Font.GothamBold
 WlAddBtn.Text = "ADD"
 WlAddBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-WlAddBtn.TextSize = 11
+WlAddBtn.TextSize = 10
 Instance.new("UICorner", WlAddBtn).CornerRadius = UDim.new(0, 6)
 
-local WlListScroll = Instance.new("ScrollingFrame", WlFrame)
-WlListScroll.BackgroundTransparency = 1
-WlListScroll.Position = UDim2.new(0, 10, 0, 75)
-WlListScroll.Size = UDim2.new(1, -20, 1, -85)
-WlListScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-WlListScroll.ScrollBarThickness = 4
-WlListScroll.ScrollBarImageColor3 = Color3.fromRGB(110, 25, 200)
+local WlScroll = Instance.new("ScrollingFrame", SettingsFrame)
+WlScroll.BackgroundTransparency = 1
+WlScroll.Position = UDim2.new(0, 12, 0, 130)
+WlScroll.Size = UDim2.new(1, -24, 1, -140)
+WlScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+WlScroll.ScrollBarThickness = 4
+WlScroll.ScrollBarImageColor3 = Color3.fromRGB(110, 25, 200)
 
-local WlListLayout = Instance.new("UIListLayout", WlListScroll)
-WlListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-WlListLayout.Padding = UDim.new(0, 4)
+local WlLayout = Instance.new("UIListLayout", WlScroll)
+WlLayout.SortOrder = Enum.SortOrder.LayoutOrder
+WlLayout.Padding = UDim.new(0, 4)
 
-local function RefreshWlUI()
-    for _, child in ipairs(WlListScroll:GetChildren()) do
-        if child:IsA("TextButton") then child:Destroy() end
+local function RefreshWhitelistUI()
+    for _, child in ipairs(WlScroll:GetChildren()) do
+        if child:IsA("TextButton") then
+            child:Destroy()
+        end
     end
     for _, name in ipairs(Settings.Whitelist) do
-        local item = Instance.new("TextButton", WlListScroll)
+        local item = Instance.new("TextButton", WlScroll)
         item.BackgroundColor3 = Color3.fromRGB(26, 20, 40)
         item.Size = UDim2.new(1, 0, 0, 24)
         item.Font = Enum.Font.GothamSemibold
-        item.Text = "  " .. name .. "  [REMOVE]"
-        item.TextColor3 = Color3.fromRGB(255, 100, 100)
+        item.Text = "  " .. name .. "   [УБРАТЬ]"
+        item.TextColor3 = Color3.fromRGB(255, 120, 120)
         item.TextSize = 11
         item.TextXAlignment = Enum.TextXAlignment.Left
         Instance.new("UICorner", item).CornerRadius = UDim.new(0, 4)
         item.MouseButton1Click:Connect(function()
-            for i, n in ipairs(Settings.Whitelist) do
-                if n == name then table.remove(Settings.Whitelist, i) break end
+            for i, v in ipairs(Settings.Whitelist) do
+                if v == name then
+                    table.remove(Settings.Whitelist, i)
+                    break
+                end
             end
-            RefreshWlUI()
+            RefreshWhitelistUI()
         end)
     end
-    WlListScroll.CanvasSize = UDim2.new(0, 0, 0, #Settings.Whitelist * 28)
+    WlScroll.CanvasSize = UDim2.new(0, 0, 0, (#Settings.Whitelist * 28) + 4)
 end
 
 WlAddBtn.MouseButton1Click:Connect(function()
-    local text = string.gsub(WlInput.Text, "%s+", "")
-    if text ~= "" then
-        table.insert(Settings.Whitelist, text)
+    local clean = string.gsub(WlInput.Text, "%s+", "")
+    if clean ~= "" then
+        table.insert(Settings.Whitelist, clean)
         WlInput.Text = ""
-        RefreshWlUI()
+        RefreshWhitelistUI()
     end
 end)
-
-local WlCloseBtn = Instance.new("TextButton", WlFrame)
-WlCloseBtn.BackgroundColor3 = Color3.fromRGB(220, 45, 65)
-WlCloseBtn.Position = UDim2.new(1, -30, 0, 8)
-WlCloseBtn.Size = UDim2.new(0, 22, 0, 22)
-WlCloseBtn.Font = Enum.Font.GothamBold
-WlCloseBtn.Text = "✕"
-WlCloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-WlCloseBtn.TextSize = 11
-Instance.new("UICorner", WlCloseBtn).CornerRadius = UDim.new(0, 6)
-WlCloseBtn.MouseButton1Click:Connect(function() WlFrame.Visible = false end)
 
 local function GetTargetAimPosition(character)
     local hrp = character and character:FindFirstChild("HumanoidRootPart")
@@ -566,15 +554,16 @@ local function GetTargetAimPosition(character)
 end
 
 local function GetClosestToCenter()
+    local cam = workspace.CurrentCamera
     local closestP = nil
     local shortestDist = Settings.Aimbot.FOV
-    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    local center = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 2)
     
     for _, player in ipairs(Players:GetPlayers()) do
         if IsValidTarget(player) then
             local aimPos = GetTargetAimPosition(player.Character)
             if aimPos then
-                local pos, onScreen = Camera:WorldToViewportPoint(aimPos)
+                local pos, onScreen = cam:WorldToViewportPoint(aimPos)
                 if onScreen then
                     local magnitude = (Vector2.new(pos.X, pos.Y) - center).Magnitude
                     if magnitude < shortestDist then
@@ -604,13 +593,16 @@ AimFloatBtn.MouseButton1Click:Connect(function()
     end
 end)
 
+-- // ОБЫЧНЫЙ АИМ: свежая камера каждый кадр + плавный лерп, без зависона
 RunService.RenderStepped:Connect(function()
     if Settings.Aimbot.Enabled and AimActive and not Settings.Aimbot.SilentAim then
+        local cam = workspace.CurrentCamera
         local target = Settings.Aimbot.LockedTarget
         if target and IsValidTarget(target) then
             local aimPos = GetTargetAimPosition(target.Character)
             if aimPos then
-                Camera.CFrame = CFrame.new(Camera.CFrame.Position, aimPos)
+                local goal = CFrame.new(cam.CFrame.Position, aimPos)
+                cam.CFrame = cam.CFrame:Lerp(goal, 0.35)
             end
         else
             Settings.Aimbot.LockedTarget = GetClosestToCenter()
@@ -618,48 +610,52 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- // SILENT AIM RAYCAST HOOK
+-- // САЙЛЕНТ АИМ: работает от своего тумблера, мастер-кнопка не нужна
+local function GetSilentTarget()
+    return GetClosestToCenter()
+end
+
+local function GetSilentPart(character)
+    return character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")
+end
+
 local OldNamecall
 OldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
     local method = getnamecallmethod()
-    local args = {...}
-
-    if Settings.Aimbot.SilentAim and AimActive and Settings.Aimbot.Enabled then
-        if self == workspace or self == Camera then
-            if method == "FindPartOnRayWithIgnoreList" or method == "FindPartOnRay" or method == "Raycast" then
-                local target = Settings.Aimbot.LockedTarget
-                if not target or not IsValidTarget(target) then
-                    target = GetClosestToCenter()
-                    Settings.Aimbot.LockedTarget = target
-                end
-
+    
+    if not checkcaller() and Settings.Aimbot.SilentAim then
+        if method == "Raycast" and self == workspace then
+            local args = {...}
+            local origin = args[1]
+            local direction = args[2]
+            if typeof(origin) == "Vector3" and typeof(direction) == "Vector3" then
+                local target = GetSilentTarget()
                 if target and target.Character then
-                    local aimPart = target.Character:FindFirstChild("Head") or target.Character:FindFirstChild("HumanoidRootPart")
-                    if aimPart then
-                        local origin
-                        local oldRay = args[1]
-
-                        if typeof(oldRay) == "Ray" then
-                            origin = oldRay.Origin
-                        elseif typeof(oldRay) == "Vector3" and method == "Raycast" then
-                            origin = oldRay
-                        end
-
-                        if origin then
-                            local newDir = (aimPart.Position - origin).Unit
-                            if method == "FindPartOnRayWithIgnoreList" or method == "FindPartOnRay" then
-                                args[1] = Ray.new(origin, newDir * 1000)
-                            elseif method == "Raycast" then
-                                args[2] = newDir * 1000
-                            end
-                        end
+                    local part = GetSilentPart(target.Character)
+                    if part then
+                        local dist = direction.Magnitude > 0 and direction.Magnitude or 1000
+                        args[2] = (part.Position - origin).Unit * dist
+                        return OldNamecall(self, unpack(args))
+                    end
+                end
+            end
+        elseif (method == "FindPartOnRayWithIgnoreList" or method == "FindPartOnRay" or method == "FindPartOnRayWithWhitelist") and self == workspace then
+            local args = {...}
+            local ray = args[1]
+            if typeof(ray) == "Ray" then
+                local target = GetSilentTarget()
+                if target and target.Character then
+                    local part = GetSilentPart(target.Character)
+                    if part then
+                        args[1] = Ray.new(ray.Origin, (part.Position - ray.Origin).Unit * 1000)
+                        return OldNamecall(self, unpack(args))
                     end
                 end
             end
         end
     end
-
-    return OldNamecall(self, unpack(args))
+    
+    return OldNamecall(self, ...)
 end))
 
 local function RemoveHighlight(player)
@@ -693,11 +689,12 @@ Players.PlayerRemoving:Connect(function(player)
 end)
 
 RunService.RenderStepped:Connect(function()
+    local cam = workspace.CurrentCamera
     for _, player in ipairs(Players:GetPlayers()) do
         if Settings.ESP.Enabled and IsValidTarget(player) then
             local char = player.Character
             local hrp = char:FindFirstChild("HumanoidRootPart")
-            local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+            local pos, onScreen = cam:WorldToViewportPoint(hrp.Position)
             
             if not Settings.ESP.ActiveDrawings[player] then
                 local box = Drawing.new("Square")
@@ -776,39 +773,28 @@ end)
 
 CreateToggle(AimbotPage, "Silent Aim (Raycast)", false, function(state)
     Settings.Aimbot.SilentAim = state
+    if state then
+        AimActive = true
+        AimFloatBtn.Text = "🎯 AIM: ON"
+        AimFloatBtn.BackgroundColor3 = Color3.fromRGB(110, 25, 200)
+        AimFloatBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    end
 end)
 
--- // UI BUTTONS FOR FOV AND WHITELIST IN MENU
-local FovGearBtn = Instance.new("TextButton", AimbotPage)
-FovGearBtn.BackgroundColor3 = Color3.fromRGB(20, 15, 32)
-FovGearBtn.Size = UDim2.new(1, 0, 0, 38)
-FovGearBtn.Font = Enum.Font.GothamSemibold
-FovGearBtn.Text = "⚙️ Adjust FOV Radius"
-FovGearBtn.TextColor3 = Color3.fromRGB(190, 180, 210)
-FovGearBtn.TextSize = 12
-Instance.new("UICorner", FovGearBtn).CornerRadius = UDim.new(0, 8)
-local fovStroke = Instance.new("UIStroke", FovGearBtn)
-fovStroke.Color = Color3.fromRGB(90, 40, 160)
-fovStroke.Thickness = 1.2
-FovGearBtn.MouseButton1Click:Connect(function()
-    FovFrame.Visible = not FovFrame.Visible
-    WlFrame.Visible = false
-end)
-
-local WlShieldBtn = Instance.new("TextButton", AimbotPage)
-WlShieldBtn.BackgroundColor3 = Color3.fromRGB(20, 15, 32)
-WlShieldBtn.Size = UDim2.new(1, 0, 0, 38)
-WlShieldBtn.Font = Enum.Font.GothamSemibold
-WlShieldBtn.Text = "🛡️ Manage Whitelist"
-WlShieldBtn.TextColor3 = Color3.fromRGB(190, 180, 210)
-WlShieldBtn.TextSize = 12
-Instance.new("UICorner", WlShieldBtn).CornerRadius = UDim.new(0, 8)
-local wlStroke = Instance.new("UIStroke", WlShieldBtn)
-wlStroke.Color = Color3.fromRGB(90, 40, 160)
-wlStroke.Thickness = 1.2
-WlShieldBtn.MouseButton1Click:Connect(function()
-    WlFrame.Visible = not WlFrame.Visible
-    FovFrame.Visible = false
+-- // ОДНА ШЕСТЕРЁНКА ВНИЗУ ВКЛАДКИ AIMBOT
+local GearBtn = Instance.new("TextButton", AimbotPage)
+GearBtn.BackgroundColor3 = Color3.fromRGB(20, 15, 32)
+GearBtn.Size = UDim2.new(1, 0, 0, 38)
+GearBtn.Font = Enum.Font.GothamSemibold
+GearBtn.Text = "⚙️ FOV + Whitelist"
+GearBtn.TextColor3 = Color3.fromRGB(190, 180, 210)
+GearBtn.TextSize = 12
+Instance.new("UICorner", GearBtn).CornerRadius = UDim.new(0, 8)
+local GearStroke = Instance.new("UIStroke", GearBtn)
+GearStroke.Color = Color3.fromRGB(90, 40, 160)
+GearStroke.Thickness = 1.2
+GearBtn.MouseButton1Click:Connect(function()
+    SettingsFrame.Visible = not SettingsFrame.Visible
 end)
 
 CreateToggle(ESPPage, "Master ESP", false, function(state)
