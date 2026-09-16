@@ -256,65 +256,70 @@ local UpdateFOV = function ()
 end
 RS.Heartbeat:Connect(UpdateFOV)
 
--- СОЗДАНИЕ МОБИЛЬНОГО GUI (С исправлениями под тач-скрин)
+-- НАДЕЖНОЕ МОБИЛЬНОЕ GUI (С высоким приоритетом отображения)
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KeanWMobile"
+ScreenGui.Name = "KeanWMobileMenu"
 ScreenGui.Parent = game.CoreGui
 ScreenGui.ResetOnSpawn = false
+ScreenGui.DisplayOrder = 999999 -- Чтобы меню было поверх всех элементов игры и экзекутора
 
 local ToggleButton = Instance.new("TextButton")
-ToggleButton.Name = "ToggleMenu"
+ToggleButton.Name = "ToggleMenuBtn"
 ToggleButton.Parent = ScreenGui
-ToggleButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+ToggleButton.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 ToggleButton.BorderColor3 = Color3.fromRGB(0, 255, 128)
-ToggleButton.Position = UDim2.new(0, 20, 0.2, 0)
-ToggleButton.Size = UDim2.new(0, 110, 0, 45)
+ToggleButton.Position = UDim2.new(0, 20, 0.15, 0)
+ToggleButton.Size = UDim2.new(0, 120, 0, 45)
 ToggleButton.Font = Enum.Font.SourceSansBold
 ToggleButton.Text = "KeanW Menu"
-ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleButton.TextColor3 = Color3.fromRGB(0, 255, 128)
 ToggleButton.TextSize = 16
 ToggleButton.Active = true
 ToggleButton.Draggable = true
 
-local MainFrame = Instance.new("Frame")
-MainFrame.Name = "MenuFrame"
+local MainFrame = Instance.new("ScrollingFrame")
+MainFrame.Name = "MenuContainer"
 MainFrame.Parent = ScreenGui
-MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 MainFrame.BackgroundTransparency = 0.1
 MainFrame.BorderColor3 = Color3.fromRGB(0, 255, 128)
-MainFrame.Position = UDim2.new(0, 140, 0.2, 0)
-MainFrame.Size = UDim2.new(0, 220, 0, 260)
+MainFrame.Position = UDim2.new(0, 150, 0.15, 0)
+MainFrame.Size = UDim2.new(0, 240, 0, 300)
 MainFrame.Visible = false
 MainFrame.Active = true
 MainFrame.Draggable = true
+MainFrame.CanvasSize = UDim2.new(0, 0, 0, 320)
+MainFrame.ScrollBarThickness = 6
 
 local UIList = Instance.new("UIListLayout")
 UIList.Parent = MainFrame
 UIList.SortOrder = Enum.SortOrder.LayoutIndex
-UIList.Padding = UDim.new(0, 5)
+UIList.Padding = UDim.new(0, 6)
 
 local function CreateMobileButton(name, defaultState, callback)
     local Btn = Instance.new("TextButton")
     Btn.Parent = MainFrame
-    Btn.BackgroundColor3 = defaultState and Color3.fromRGB(0, 150, 75) or Color3.fromRGB(50, 50, 50)
-    Btn.Size = UDim2.new(1, 0, 0, 35)
+    Btn.BackgroundColor3 = defaultState and Color3.fromRGB(0, 150, 75) or Color3.fromRGB(40, 40, 40)
+    Btn.Size = UDim2.new(1, -10, 0, 35)
     Btn.Font = Enum.Font.SourceSansBold
     Btn.Text = name .. ": " .. (defaultState and "ON" or "OFF")
     Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
     Btn.TextSize = 14
 
-    -- Использование .Activated вместо MouseButton1Click для мобилок
     Btn.Activated:Connect(function()
         defaultState = not defaultState
         Btn.Text = name .. ": " .. (defaultState and "ON" or "OFF")
-        Btn.BackgroundColor3 = defaultState and Color3.fromRGB(0, 150, 75) or Color3.fromRGB(50, 50, 50)
+        Btn.BackgroundColor3 = defaultState and Color3.fromRGB(0, 150, 75) or Color3.fromRGB(40, 40, 40)
         callback(defaultState)
     end)
 end
 
--- Использование .Activated для кнопки меню
 ToggleButton.Activated:Connect(function()
     MainFrame.Visible = not MainFrame.Visible
+end)
+
+CreateMobileButton("Silent Aim", KeanW.Silent.Enabled, function(state)
+    KeanW.Silent.Enabled = state
 end)
 
 CreateMobileButton("FOV Circle", KeanW.FOV.Visible, function(state)
@@ -378,4 +383,4 @@ for _, p in pairs(Players:GetPlayers()) do
 end
 Players.PlayerAdded:Connect(addEsp)
 
-print("KeanW Mobile Loaded Successfully!")
+print("KeanW Mobile Menu Loaded Successfully!")
