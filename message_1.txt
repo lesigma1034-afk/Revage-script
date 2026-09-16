@@ -1,4 +1,4 @@
--- COCITESCRIPT | Da Hood & Flame Hood Edition (Matcha Cyber UI & Real Silent Aim + Tracers)
+-- COCITESCRIPT | Da Hood & Flame Hood Edition (Clean Startup)
 if _G.CociteRunning then
     return
 end
@@ -11,6 +11,12 @@ local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
 local Settings = {
+    Aimbot = {
+        Enabled = false,
+        SilentAim = false,
+        LockedTarget = nil,
+        FOV = 250,
+    },
     ESP = {
         Enabled = false,
         Boxes = true,
@@ -19,17 +25,22 @@ local Settings = {
         ActiveDrawings = {},
         ActiveHighlights = {}
     },
-    SilentAim = {
-        Enabled = false,
-        FOV = 150,
-        HitPart = "Head",
-        ShowFOV = true,
-        Tracers = true
-    }
+    Whitelist = {}
 }
+
+local function IsWhitelisted(player)
+    for _, name in ipairs(Settings.Whitelist) do
+        if string.lower(name) == string.lower(player.Name) then
+            return true
+        end
+    end
+    return false
+end
 
 local function IsValidTarget(player)
     if player == LocalPlayer or not player.Character then return false end
+    if IsWhitelisted(player) then return false end
+    
     local char = player.Character
     local humanoid = char:FindFirstChild("Humanoid")
     local hrp = char:FindFirstChild("HumanoidRootPart")
@@ -57,23 +68,25 @@ if not ScreenGui.Parent then
 end
 ScreenGui.ResetOnSpawn = false
 
--- ==================== АВТОРИЗАЦИЯ ====================
 local AuthFrame = Instance.new("Frame", ScreenGui)
-AuthFrame.BackgroundColor3 = Color3.fromRGB(12, 10, 18)
+AuthFrame.BackgroundColor3 = Color3.fromRGB(10, 8, 16)
 AuthFrame.Position = UDim2.new(0.5, -170, 0.5, -130)
 AuthFrame.Size = UDim2.new(0, 340, 0, 260)
 AuthFrame.Active = true
 AuthFrame.Draggable = true
-Instance.new("UICorner", AuthFrame).CornerRadius = UDim.new(0, 14)
+AuthFrame.BackgroundTransparency = 1
+Instance.new("UICorner", AuthFrame).CornerRadius = UDim.new(0, 16)
 
 local AuthStroke = Instance.new("UIStroke", AuthFrame)
-AuthStroke.Color = Color3.fromRGB(140, 40, 255)
+AuthStroke.Color = Color3.fromRGB(160, 50, 255)
 AuthStroke.Thickness = 2
+AuthStroke.Transparency = 1
 
 local AuthHeader = Instance.new("Frame", AuthFrame)
-AuthHeader.BackgroundColor3 = Color3.fromRGB(20, 15, 30)
-AuthHeader.Size = UDim2.new(1, 0, 0, 42)
-Instance.new("UICorner", AuthHeader).CornerRadius = UDim.new(0, 14)
+AuthHeader.BackgroundColor3 = Color3.fromRGB(22, 16, 36)
+AuthHeader.Size = UDim2.new(1, 0, 0, 48)
+AuthHeader.BackgroundTransparency = 1
+Instance.new("UICorner", AuthHeader).CornerRadius = UDim.new(0, 16)
 
 local AuthTitle = Instance.new("TextLabel", AuthHeader)
 AuthTitle.BackgroundTransparency = 1
@@ -81,28 +94,28 @@ AuthTitle.Position = UDim2.new(0, 16, 0, 0)
 AuthTitle.Size = UDim2.new(1, -32, 1, 0)
 AuthTitle.Font = Enum.Font.GothamBold
 AuthTitle.Text = "🛡️ COCITESCRIPT | AUTH"
-AuthTitle.TextColor3 = Color3.fromRGB(210, 160, 255)
-AuthTitle.TextSize = 12
+AuthTitle.TextColor3 = Color3.fromRGB(220, 180, 255)
+AuthTitle.TextSize = 13
+AuthTitle.TextTransparency = 1
 AuthTitle.TextXAlignment = Enum.TextXAlignment.Left
 
 local WelcomeLabel = Instance.new("TextLabel", AuthFrame)
 WelcomeLabel.BackgroundTransparency = 1
-WelcomeLabel.Position = UDim2.new(0, 20, 0, 52)
+WelcomeLabel.Position = UDim2.new(0, 20, 0, 56)
 WelcomeLabel.Size = UDim2.new(0, 300, 0, 22)
 WelcomeLabel.Font = Enum.Font.GothamBold
 WelcomeLabel.Text = "Привет, " .. LocalPlayer.Name .. "!"
 WelcomeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-WelcomeLabel.TextSize = 13
+WelcomeLabel.TextSize = 14
+WelcomeLabel.TextTransparency = 1
 WelcomeLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local InputContainer = Instance.new("Frame", AuthFrame)
-InputContainer.BackgroundColor3 = Color3.fromRGB(18, 14, 26)
-InputContainer.Position = UDim2.new(0, 20, 0, 85)
-InputContainer.Size = UDim2.new(0, 300, 0, 40)
-Instance.new("UICorner", InputContainer).CornerRadius = UDim.new(0, 8)
-local inStroke = Instance.new("UIStroke", InputContainer)
-inStroke.Color = Color3.fromRGB(90, 40, 160)
-inStroke.Thickness = 1
+InputContainer.BackgroundColor3 = Color3.fromRGB(16, 12, 26)
+InputContainer.Position = UDim2.new(0, 20, 0, 90)
+InputContainer.Size = UDim2.new(0, 300, 0, 42)
+InputContainer.BackgroundTransparency = 1
+Instance.new("UICorner", InputContainer).CornerRadius = UDim.new(0, 10)
 
 local TextBox = Instance.new("TextBox", InputContainer)
 TextBox.BackgroundTransparency = 1
@@ -114,36 +127,54 @@ TextBox.Text = ""
 TextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 TextBox.PlaceholderColor3 = Color3.fromRGB(100, 90, 120)
 TextBox.TextSize = 12
+TextBox.TextTransparency = 1
 
 local StatusLabel = Instance.new("TextLabel", AuthFrame)
 StatusLabel.BackgroundTransparency = 1
-StatusLabel.Position = UDim2.new(0, 20, 0, 132)
+StatusLabel.Position = UDim2.new(0, 20, 0, 140)
 StatusLabel.Size = UDim2.new(0, 300, 0, 18)
 StatusLabel.Font = Enum.Font.Gotham
 StatusLabel.Text = "Статус: Ожидание ввода..."
 StatusLabel.TextColor3 = Color3.fromRGB(130, 120, 160)
 StatusLabel.TextSize = 11
+StatusLabel.TextTransparency = 1
 StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local PasteBtn = Instance.new("TextButton", AuthFrame)
-PasteBtn.BackgroundColor3 = Color3.fromRGB(24, 18, 36)
-PasteBtn.Position = UDim2.new(0, 20, 0, 162)
-PasteBtn.Size = UDim2.new(0, 95, 0, 36)
+PasteBtn.BackgroundColor3 = Color3.fromRGB(28, 20, 44)
+PasteBtn.Position = UDim2.new(0, 20, 0, 172)
+PasteBtn.Size = UDim2.new(0, 95, 0, 38)
 PasteBtn.Font = Enum.Font.GothamBold
 PasteBtn.Text = "📋 ВСТАВИТЬ"
 PasteBtn.TextColor3 = Color3.fromRGB(180, 160, 220)
 PasteBtn.TextSize = 11
-Instance.new("UICorner", PasteBtn).CornerRadius = UDim.new(0, 8)
+PasteBtn.BackgroundTransparency = 1
+PasteBtn.TextTransparency = 1
+Instance.new("UICorner", PasteBtn).CornerRadius = UDim.new(0, 10)
 
 local LoginBtn = Instance.new("TextButton", AuthFrame)
-LoginBtn.BackgroundColor3 = Color3.fromRGB(110, 25, 200)
-LoginBtn.Position = UDim2.new(0, 123, 0, 162)
-LoginBtn.Size = UDim2.new(0, 197, 0, 36)
+LoginBtn.BackgroundColor3 = Color3.fromRGB(130, 35, 235)
+LoginBtn.Position = UDim2.new(0, 123, 0, 172)
+LoginBtn.Size = UDim2.new(0, 197, 0, 38)
 LoginBtn.Font = Enum.Font.GothamBold
 LoginBtn.Text = "АВТОРИЗОВАТЬСЯ ➔"
 LoginBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 LoginBtn.TextSize = 11
-Instance.new("UICorner", LoginBtn).CornerRadius = UDim.new(0, 8)
+LoginBtn.BackgroundTransparency = 1
+LoginBtn.TextTransparency = 1
+Instance.new("UICorner", LoginBtn).CornerRadius = UDim.new(0, 10)
+
+local tweenInfo = TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+TweenService:Create(AuthFrame, tweenInfo, {BackgroundTransparency = 0}):Play()
+TweenService:Create(AuthStroke, tweenInfo, {Transparency = 0}):Play()
+TweenService:Create(AuthHeader, tweenInfo, {BackgroundTransparency = 0}):Play()
+TweenService:Create(AuthTitle, tweenInfo, {TextTransparency = 0}):Play()
+TweenService:Create(WelcomeLabel, tweenInfo, {TextTransparency = 0}):Play()
+TweenService:Create(InputContainer, tweenInfo, {BackgroundTransparency = 0}):Play()
+TweenService:Create(TextBox, tweenInfo, {TextTransparency = 0}):Play()
+TweenService:Create(StatusLabel, tweenInfo, {TextTransparency = 0}):Play()
+TweenService:Create(PasteBtn, tweenInfo, {BackgroundTransparency = 0, TextTransparency = 0}):Play()
+TweenService:Create(LoginBtn, tweenInfo, {BackgroundTransparency = 0, TextTransparency = 0}):Play()
 
 PasteBtn.MouseButton1Click:Connect(function()
     if getclipboard then
@@ -151,63 +182,60 @@ PasteBtn.MouseButton1Click:Connect(function()
         if text and text ~= "" then
             TextBox.Text = text
             StatusLabel.Text = "Статус: Ключ вставлен"
-            StatusLabel.TextColor3 = Color3.fromRGB(180, 140, 255)
         end
     end
 end)
 
--- ==================== ГЛАВНОЕ ОКНО (МАТЧА СТИЛЬ) ====================
 local ToggleButton = Instance.new("ImageButton", ScreenGui)
 ToggleButton.Name = "CociteToggleBtn"
 ToggleButton.BackgroundColor3 = Color3.fromRGB(18, 14, 28)
 ToggleButton.Position = UDim2.new(0, 20, 0.3, 0)
-ToggleButton.Size = UDim2.new(0, 48, 0, 48)
+ToggleButton.Size = UDim2.new(0, 52, 0, 52)
 ToggleButton.Visible = false
 ToggleButton.Active = true
 ToggleButton.Draggable = true
 ToggleButton.Image = "rbxassetid://6034287592"
 Instance.new("UICorner", ToggleButton).CornerRadius = UDim.new(1, 0)
-local tStroke = Instance.new("UIStroke", ToggleButton)
-tStroke.Color = Color3.fromRGB(140, 40, 255)
-tStroke.Thickness = 1.5
 
 local MainFrame = Instance.new("Frame", ScreenGui)
 MainFrame.Name = "MainFrame"
-MainFrame.BackgroundColor3 = Color3.fromRGB(12, 10, 18)
+MainFrame.BackgroundColor3 = Color3.fromRGB(12, 10, 20)
 MainFrame.Position = UDim2.new(0.5, -190, 0.5, -140)
 MainFrame.Size = UDim2.new(0, 380, 0, 280)
 MainFrame.Visible = false
 MainFrame.Active = true
 MainFrame.Draggable = true
+MainFrame.BackgroundTransparency = 1
 
 Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 14)
 local MainStroke = Instance.new("UIStroke", MainFrame)
 MainStroke.Color = Color3.fromRGB(140, 40, 255)
-MainStroke.Thickness = 2
+MainStroke.Thickness = 2.5
+MainStroke.Transparency = 1
 
 local Header = Instance.new("Frame", MainFrame)
-Header.BackgroundColor3 = Color3.fromRGB(18, 14, 28)
-Header.Size = UDim2.new(1, 0, 0, 40)
+Header.BackgroundColor3 = Color3.fromRGB(20, 15, 32)
+Header.Size = UDim2.new(1, 0, 0, 42)
 Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 14)
 
 local Title = Instance.new("TextLabel", Header)
 Title.BackgroundTransparency = 1
-Title.Position = UDim2.new(0, 14, 0, 0)
+Title.Position = UDim2.new(0, 16, 0, 0)
 Title.Size = UDim2.new(1, -50, 1, 0)
 Title.Font = Enum.Font.GothamBold
 Title.Text = "⚡ COCITESCRIPT | DA HOOD HUB ⚡"
 Title.TextColor3 = Color3.fromRGB(210, 160, 255)
-Title.TextSize = 12
+Title.TextSize = 13
 Title.TextXAlignment = Enum.TextXAlignment.Left
 
 local CloseBtn = Instance.new("TextButton", Header)
 CloseBtn.BackgroundColor3 = Color3.fromRGB(220, 45, 65)
-CloseBtn.Position = UDim2.new(1, -32, 0.5, -10)
-CloseBtn.Size = UDim2.new(0, 20, 0, 20)
+CloseBtn.Position = UDim2.new(1, -34, 0.5, -11)
+CloseBtn.Size = UDim2.new(0, 22, 0, 22)
 CloseBtn.Font = Enum.Font.GothamBold
 CloseBtn.Text = "✕"
 CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseBtn.TextSize = 10
+CloseBtn.TextSize = 11
 Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 6)
 
 CloseBtn.MouseButton1Click:Connect(function()
@@ -219,41 +247,39 @@ ToggleButton.MouseButton1Click:Connect(function()
 end)
 
 local TabBar = Instance.new("Frame", MainFrame)
-TabBar.BackgroundColor3 = Color3.fromRGB(16, 12, 24)
-TabBar.Position = UDim2.new(0, 12, 0, 48)
-TabBar.Size = UDim2.new(1, -24, 0, 34)
+TabBar.BackgroundColor3 = Color3.fromRGB(18, 14, 28)
+TabBar.Position = UDim2.new(0, 15, 0, 50)
+TabBar.Size = UDim2.new(1, -30, 0, 36)
 Instance.new("UICorner", TabBar).CornerRadius = UDim.new(0, 8)
 
 local TabListLayout = Instance.new("UIListLayout", TabBar)
 TabListLayout.FillDirection = Enum.FillDirection.Horizontal
 TabListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 TabListLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-TabListLayout.Padding = UDim.new(0, 6)
+TabListLayout.Padding = UDim.new(0, 8)
 
 local ContentContainer = Instance.new("Frame", MainFrame)
 ContentContainer.BackgroundTransparency = 1
-ContentContainer.Position = UDim2.new(0, 12, 0, 90)
-ContentContainer.Size = UDim2.new(1, -24, 1, -100)
+ContentContainer.Position = UDim2.new(0, 15, 0, 96)
+ContentContainer.Size = UDim2.new(1, -30, 1, -106)
 
 local Tabs = {}
 local TabButtons = {}
 
 local function CreateTab(tabName)
     local tabBtn = Instance.new("TextButton", TabBar)
-    tabBtn.BackgroundColor3 = Color3.fromRGB(22, 16, 34)
-    tabBtn.Size = UDim2.new(0, 112, 0, 26)
+    tabBtn.BackgroundColor3 = Color3.fromRGB(26, 20, 40)
+    tabBtn.Size = UDim2.new(0, 165, 0, 28)
     tabBtn.Font = Enum.Font.GothamBold
     tabBtn.Text = tabName
     tabBtn.TextColor3 = Color3.fromRGB(150, 140, 170)
     tabBtn.TextSize = 11
     Instance.new("UICorner", tabBtn).CornerRadius = UDim.new(0, 6)
 
-    local pageFrame = Instance.new("ScrollingFrame", ContentContainer)
+    local pageFrame = Instance.new("Frame", ContentContainer)
     pageFrame.BackgroundTransparency = 1
     pageFrame.Size = UDim2.new(1, 0, 1, 0)
     pageFrame.Visible = false
-    pageFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-    pageFrame.ScrollBarThickness = 2
 
     local pageList = Instance.new("UIListLayout", pageFrame)
     pageList.SortOrder = Enum.SortOrder.LayoutOrder
@@ -262,7 +288,7 @@ local function CreateTab(tabName)
     tabBtn.MouseButton1Click:Connect(function()
         for name, page in pairs(Tabs) do
             page.Visible = false
-            TabButtons[name].BackgroundColor3 = Color3.fromRGB(22, 16, 34)
+            TabButtons[name].BackgroundColor3 = Color3.fromRGB(26, 20, 40)
             TabButtons[name].TextColor3 = Color3.fromRGB(150, 140, 170)
         end
         pageFrame.Visible = true
@@ -275,17 +301,17 @@ local function CreateTab(tabName)
     return pageFrame
 end
 
-local SilentPage = CreateTab("SILENT AIM")
+local AimbotPage = CreateTab("AIMBOT")
 local ESPPage = CreateTab("ESP")
 
-Tabs["SILENT AIM"].Visible = true
-TabButtons["SILENT AIM"].BackgroundColor3 = Color3.fromRGB(110, 25, 200)
-TabButtons["SILENT AIM"].TextColor3 = Color3.fromRGB(255, 255, 255)
+Tabs["AIMBOT"].Visible = true
+TabButtons["AIMBOT"].BackgroundColor3 = Color3.fromRGB(110, 25, 200)
+TabButtons["AIMBOT"].TextColor3 = Color3.fromRGB(255, 255, 255)
 
 local function CreateToggle(parent, text, defaultState, callback)
     local btn = Instance.new("TextButton", parent)
-    btn.BackgroundColor3 = defaultState and Color3.fromRGB(110, 25, 200) or Color3.fromRGB(18, 14, 28)
-    btn.Size = UDim2.new(1, 0, 0, 36)
+    btn.BackgroundColor3 = defaultState and Color3.fromRGB(110, 25, 200) or Color3.fromRGB(20, 15, 32)
+    btn.Size = UDim2.new(1, 0, 0, 38)
     btn.Font = Enum.Font.GothamSemibold
     btn.Text = text .. (defaultState and ": ON" or ": OFF")
     btn.TextColor3 = defaultState and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(190, 180, 210)
@@ -304,7 +330,7 @@ local function CreateToggle(parent, text, defaultState, callback)
             btn.TextColor3 = Color3.fromRGB(255, 255, 255)
             btn.Text = text .. ": ON"
         else
-            btn.BackgroundColor3 = Color3.fromRGB(18, 14, 28)
+            btn.BackgroundColor3 = Color3.fromRGB(20, 15, 32)
             btn.TextColor3 = Color3.fromRGB(190, 180, 210)
             btn.Text = text .. ": OFF"
         end
@@ -330,41 +356,225 @@ LoginBtn.MouseButton1Click:Connect(function()
         ToggleButton.Visible = true
         MainFrame.Visible = true
         TweenService:Create(MainFrame, TweenInfo.new(0.5), {BackgroundTransparency = 0}):Play()
+        TweenService:Create(MainStroke, TweenInfo.new(0.5), {Transparency = 0}):Play()
     else
         StatusLabel.Text = "Статус: ❌ Неверный ключ!"
         StatusLabel.TextColor3 = Color3.fromRGB(255, 70, 90)
     end
 end)
 
--- ==================== SILENT AIM + ТРАССЕРЫ КАК НА ВИДЕО ====================
-local SilentFOVCircle = Drawing.new("Circle")
-SilentFOVCircle.Visible = false
-SilentFOVCircle.Thickness = 1.5
-SilentFOVCircle.Color = Color3.fromRGB(180, 50, 255)
-SilentFOVCircle.Filled = false
-SilentFOVCircle.Radius = Settings.SilentAim.FOV
+local AimFloatBtn = Instance.new("TextButton", ScreenGui)
+AimFloatBtn.BackgroundColor3 = Color3.fromRGB(20, 15, 32)
+AimFloatBtn.Position = UDim2.new(0.8, 0, 0.4, 0)
+AimFloatBtn.Size = UDim2.new(0, 100, 0, 46)
+AimFloatBtn.Font = Enum.Font.GothamBold
+AimFloatBtn.Text = "🎯 AIM: OFF"
+AimFloatBtn.TextColor3 = Color3.fromRGB(200, 150, 255)
+AimFloatBtn.TextSize = 12
+AimFloatBtn.Visible = false
+AimFloatBtn.Active = true
+AimFloatBtn.Draggable = true
+Instance.new("UICorner", AimFloatBtn).CornerRadius = UDim.new(0, 10)
 
+-- // FOV SETTINGS FRAME (GEAR)
+local FovFrame = Instance.new("Frame", ScreenGui)
+FovFrame.BackgroundColor3 = Color3.fromRGB(12, 10, 20)
+FovFrame.Position = UDim2.new(0.5, -120, 0.5, -70)
+FovFrame.Size = UDim2.new(0, 240, 0, 140)
+FovFrame.Visible = false
+FovFrame.Active = true
+FovFrame.Draggable = true
+Instance.new("UICorner", FovFrame).CornerRadius = UDim.new(0, 12)
+local FovStroke = Instance.new("UIStroke", FovFrame)
+FovStroke.Color = Color3.fromRGB(140, 40, 255)
+FovStroke.Thickness = 2
+
+local FovTitle = Instance.new("TextLabel", FovFrame)
+FovTitle.BackgroundTransparency = 1
+FovTitle.Position = UDim2.new(0, 10, 0, 10)
+FovTitle.Size = UDim2.new(1, -20, 0, 20)
+FovTitle.Font = Enum.Font.GothamBold
+FovTitle.Text = "⚙️ FOV SETTINGS"
+FovTitle.TextColor3 = Color3.fromRGB(210, 160, 255)
+FovTitle.TextSize = 12
+FovTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+local FovSlider = Instance.new("Frame", FovFrame)
+FovSlider.BackgroundColor3 = Color3.fromRGB(26, 20, 40)
+FovSlider.Position = UDim2.new(0, 15, 0, 45)
+FovSlider.Size = UDim2.new(1, -30, 0, 10)
+Instance.new("UICorner", FovSlider).CornerRadius = UDim.new(1, 0)
+
+local FovFill = Instance.new("Frame", FovSlider)
+FovFill.BackgroundColor3 = Color3.fromRGB(110, 25, 200)
+FovFill.Size = UDim2.new(Settings.Aimbot.FOV / 1000, 0, 1, 0)
+Instance.new("UICorner", FovFill).CornerRadius = UDim.new(1, 0)
+
+local FovValueLabel = Instance.new("TextLabel", FovFrame)
+FovValueLabel.BackgroundTransparency = 1
+FovValueLabel.Position = UDim2.new(0, 15, 0, 65)
+FovValueLabel.Size = UDim2.new(1, -30, 0, 20)
+FovValueLabel.Font = Enum.Font.GothamSemibold
+FovValueLabel.Text = "Radius: " .. tostring(Settings.Aimbot.FOV)
+FovValueLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+FovValueLabel.TextSize = 11
+FovValueLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local draggingFov = false
+FovSlider.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        draggingFov = true
+    end
+end)
+FovSlider.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        draggingFov = false
+    end
+end)
 RunService.RenderStepped:Connect(function()
-    if Settings.SilentAim.Enabled and Settings.SilentAim.ShowFOV then
-        SilentFOVCircle.Visible = true
-        SilentFOVCircle.Radius = Settings.SilentAim.FOV
-        SilentFOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-    else
-        SilentFOVCircle.Visible = false
+    if draggingFov then
+        local mousePos = UserInputService and UserInputService:GetMouseLocation() or Vector2.new(0,0)
+        if not UserInputService then
+            pcall(function() UserInputService = game:GetService("UserInputService") end)
+        end
+        local relX = math.clamp((mousePos.X - FovSlider.AbsolutePosition.X) / FovSlider.AbsoluteSize.X, 0, 1)
+        local newFov = math.floor(relX * 1000)
+        Settings.Aimbot.FOV = newFov
+        FovFill.Size = UDim2.new(relX, 0, 1, 0)
+        FovValueLabel.Text = "Radius: " .. tostring(newFov)
     end
 end)
 
-local function GetClosestSilentTarget()
+local FovCloseBtn = Instance.new("TextButton", FovFrame)
+FovCloseBtn.BackgroundColor3 = Color3.fromRGB(220, 45, 65)
+FovCloseBtn.Position = UDim2.new(1, -30, 0, 8)
+FovCloseBtn.Size = UDim2.new(0, 22, 0, 22)
+FovCloseBtn.Font = Enum.Font.GothamBold
+FovCloseBtn.Text = "✕"
+FovCloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+FovCloseBtn.TextSize = 11
+Instance.new("UICorner", FovCloseBtn).CornerRadius = UDim.new(0, 6)
+FovCloseBtn.MouseButton1Click:Connect(function() FovFrame.Visible = false end)
+
+-- // WHITELIST FRAME (SHIELD)
+local WlFrame = Instance.new("Frame", ScreenGui)
+WlFrame.BackgroundColor3 = Color3.fromRGB(12, 10, 20)
+WlFrame.Position = UDim2.new(0.5, -130, 0.5, -100)
+WlFrame.Size = UDim2.new(0, 260, 0, 200)
+WlFrame.Visible = false
+WlFrame.Active = true
+WlFrame.Draggable = true
+Instance.new("UICorner", WlFrame).CornerRadius = UDim.new(0, 12)
+local WlStroke = Instance.new("UIStroke", WlFrame)
+WlStroke.Color = Color3.fromRGB(140, 40, 255)
+WlStroke.Thickness = 2
+
+local WlTitle = Instance.new("TextLabel", WlFrame)
+WlTitle.BackgroundTransparency = 1
+WlTitle.Position = UDim2.new(0, 10, 0, 10)
+WlTitle.Size = UDim2.new(1, -20, 0, 20)
+WlTitle.Font = Enum.Font.GothamBold
+WlTitle.Text = "🛡️ WHITELIST"
+WlTitle.TextColor3 = Color3.fromRGB(210, 160, 255)
+WlTitle.TextSize = 12
+WlTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+local WlInput = Instance.new("TextBox", WlFrame)
+WlInput.BackgroundColor3 = Color3.fromRGB(26, 20, 40)
+WlInput.Position = UDim2.new(0, 10, 0, 40)
+WlInput.Size = UDim2.new(1, -80, 0, 28)
+WlInput.Font = Enum.Font.GothamSemibold
+WlInput.PlaceholderText = "Nickname..."
+WlInput.Text = ""
+WlInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+WlInput.PlaceholderColor3 = Color3.fromRGB(100, 90, 120)
+WlInput.TextSize = 11
+Instance.new("UICorner", WlInput).CornerRadius = UDim.new(0, 6)
+
+local WlAddBtn = Instance.new("TextButton", WlFrame)
+WlAddBtn.BackgroundColor3 = Color3.fromRGB(110, 25, 200)
+WlAddBtn.Position = UDim2.new(1, -60, 0, 40)
+WlAddBtn.Size = UDim2.new(0, 50, 0, 28)
+WlAddBtn.Font = Enum.Font.GothamBold
+WlAddBtn.Text = "ADD"
+WlAddBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+WlAddBtn.TextSize = 11
+Instance.new("UICorner", WlAddBtn).CornerRadius = UDim.new(0, 6)
+
+local WlListScroll = Instance.new("ScrollingFrame", WlFrame)
+WlListScroll.BackgroundTransparency = 1
+WlListScroll.Position = UDim2.new(0, 10, 0, 75)
+WlListScroll.Size = UDim2.new(1, -20, 1, -85)
+WlListScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+WlListScroll.ScrollBarThickness = 4
+WlListScroll.ScrollBarImageColor3 = Color3.fromRGB(110, 25, 200)
+
+local WlListLayout = Instance.new("UIListLayout", WlListScroll)
+WlListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+WlListLayout.Padding = UDim.new(0, 4)
+
+local function RefreshWlUI()
+    for _, child in ipairs(WlListScroll:GetChildren()) do
+        if child:IsA("TextButton") then child:Destroy() end
+    end
+    for _, name in ipairs(Settings.Whitelist) do
+        local item = Instance.new("TextButton", WlListScroll)
+        item.BackgroundColor3 = Color3.fromRGB(26, 20, 40)
+        item.Size = UDim2.new(1, 0, 0, 24)
+        item.Font = Enum.Font.GothamSemibold
+        item.Text = "  " .. name .. "  [REMOVE]"
+        item.TextColor3 = Color3.fromRGB(255, 100, 100)
+        item.TextSize = 11
+        item.TextXAlignment = Enum.TextXAlignment.Left
+        Instance.new("UICorner", item).CornerRadius = UDim.new(0, 4)
+        item.MouseButton1Click:Connect(function()
+            for i, n in ipairs(Settings.Whitelist) do
+                if n == name then table.remove(Settings.Whitelist, i) break end
+            end
+            RefreshWlUI()
+        end)
+    end
+    WlListScroll.CanvasSize = UDim2.new(0, 0, 0, #Settings.Whitelist * 28)
+end
+
+WlAddBtn.MouseButton1Click:Connect(function()
+    local text = string.gsub(WlInput.Text, "%s+", "")
+    if text ~= "" then
+        table.insert(Settings.Whitelist, text)
+        WlInput.Text = ""
+        RefreshWlUI()
+    end
+end)
+
+local WlCloseBtn = Instance.new("TextButton", WlFrame)
+WlCloseBtn.BackgroundColor3 = Color3.fromRGB(220, 45, 65)
+WlCloseBtn.Position = UDim2.new(1, -30, 0, 8)
+WlCloseBtn.Size = UDim2.new(0, 22, 0, 22)
+WlCloseBtn.Font = Enum.Font.GothamBold
+WlCloseBtn.Text = "✕"
+WlCloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+WlCloseBtn.TextSize = 11
+Instance.new("UICorner", WlCloseBtn).CornerRadius = UDim.new(0, 6)
+WlCloseBtn.MouseButton1Click:Connect(function() WlFrame.Visible = false end)
+
+local function GetTargetAimPosition(character)
+    local hrp = character and character:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        return hrp.Position + Vector3.new(0, 0.75, 0)
+    end
+    return nil
+end
+
+local function GetClosestToCenter()
     local closestP = nil
-    local shortestDist = Settings.SilentAim.FOV
+    local shortestDist = Settings.Aimbot.FOV
     local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
     
     for _, player in ipairs(Players:GetPlayers()) do
         if IsValidTarget(player) then
-            local char = player.Character
-            local part = char:FindFirstChild(Settings.SilentAim.HitPart) or char:FindFirstChild("HumanoidRootPart")
-            if part then
-                local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
+            local aimPos = GetTargetAimPosition(player.Character)
+            if aimPos then
+                local pos, onScreen = Camera:WorldToViewportPoint(aimPos)
                 if onScreen then
                     local magnitude = (Vector2.new(pos.X, pos.Y) - center).Magnitude
                     if magnitude < shortestDist then
@@ -378,216 +588,80 @@ local function GetClosestSilentTarget()
     return closestP
 end
 
--- Функция создания белого трейсера как в видео
-local function ShowTracer(targetPart)
-    if not Settings.SilentAim.Tracers or not LocalPlayer.Character then return end
-    local tool = LocalPlayer.Character:FindFirstChildOfClass("Tool")
-    local originPart = tool and tool:FindFirstChild("Handle") or LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not originPart then return end
-    
-    local line = Drawing.new("Line")
-    line.Thickness = 1.5
-    line.Color = Color3.fromRGB(255, 255, 255)
-    line.Transparency = 1
-    
-    local connection
-    connection = RunService.RenderStepped:Connect(function()
-        if originPart and targetPart then
-            local p1, on1 = Camera:WorldToViewportPoint(originPart.Position)
-            local p2, on2 = Camera:WorldToViewportPoint(targetPart.Position)
-            if on1 and on2 then
-                line.From = Vector2.new(p1.X, p1.Y)
-                line.To = Vector2.new(p2.X, p2.Y)
-                line.Visible = true
-            else
-                line.Visible = false
+local AimActive = false
+AimFloatBtn.MouseButton1Click:Connect(function()
+    AimActive = not AimActive
+    if AimActive then
+        AimFloatBtn.BackgroundColor3 = Color3.fromRGB(110, 25, 200)
+        AimFloatBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        AimFloatBtn.Text = "🎯 AIM: ON"
+        Settings.Aimbot.LockedTarget = GetClosestToCenter()
+    else
+        AimFloatBtn.BackgroundColor3 = Color3.fromRGB(20, 15, 32)
+        AimFloatBtn.TextColor3 = Color3.fromRGB(200, 150, 255)
+        AimFloatBtn.Text = "🎯 AIM: OFF"
+        Settings.Aimbot.LockedTarget = nil
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    if Settings.Aimbot.Enabled and AimActive and not Settings.Aimbot.SilentAim then
+        local target = Settings.Aimbot.LockedTarget
+        if target and IsValidTarget(target) then
+            local aimPos = GetTargetAimPosition(target.Character)
+            if aimPos then
+                Camera.CFrame = CFrame.new(Camera.CFrame.Position, aimPos)
             end
         else
-            line.Visible = false
+            Settings.Aimbot.LockedTarget = GetClosestToCenter()
         end
-    end)
-    
-    task.delay(0.06, function()
-        if connection then connection:Disconnect() end
-        line:Remove()
-    end)
-end
+    end
+end)
 
-pcall(function()
-    local mt = getrawmetatable(game)
-    setreadonly(mt, false)
-    local oldNamecall = mt.__namecall
-    
-    mt.__namecall = newcclosure(function(self, ...)
-        local method = getnamecallmethod()
-        local args = {...}
-        if Settings.SilentAim.Enabled and (method == "FindPartOnRay" or method == "FindPartOnRayWithIgnoreList") then
-            local target = GetClosestSilentTarget()
-            if target and target.Character then
-                local part = target.Character:FindFirstChild(Settings.SilentAim.HitPart) or target.Character:FindFirstChild("HumanoidRootPart")
-                if part and args[1] then
-                    ShowTracer(part)
-                    local origin = args[1].Origin
-                    local direction = (part.Position - origin).Unit * 1000
-                    args[1] = Ray.new(origin, direction)
-                    return oldNamecall(self, unpack(args))
+-- // SILENT AIM RAYCAST HOOK
+local OldNamecall
+OldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+    local method = getnamecallmethod()
+    local args = {...}
+
+    if Settings.Aimbot.SilentAim and AimActive and Settings.Aimbot.Enabled then
+        if self == workspace or self == Camera then
+            if method == "FindPartOnRayWithIgnoreList" or method == "FindPartOnRay" or method == "Raycast" then
+                local target = Settings.Aimbot.LockedTarget
+                if not target or not IsValidTarget(target) then
+                    target = GetClosestToCenter()
+                    Settings.Aimbot.LockedTarget = target
+                end
+
+                if target and target.Character then
+                    local aimPart = target.Character:FindFirstChild("Head") or target.Character:FindFirstChild("HumanoidRootPart")
+                    if aimPart then
+                        local origin
+                        local oldRay = args[1]
+
+                        if typeof(oldRay) == "Ray" then
+                            origin = oldRay.Origin
+                        elseif typeof(oldRay) == "Vector3" and method == "Raycast" then
+                            origin = oldRay
+                        end
+
+                        if origin then
+                            local newDir = (aimPart.Position - origin).Unit
+                            if method == "FindPartOnRayWithIgnoreList" or method == "FindPartOnRay" then
+                                args[1] = Ray.new(origin, newDir * 1000)
+                            elseif method == "Raycast" then
+                                args[2] = newDir * 1000
+                            end
+                        end
+                    end
                 end
             end
-        elseif Settings.SilentAim.Enabled and method == "Raycast" then
-            local target = GetClosestSilentTarget()
-            if target and target.Character then
-                local part = target.Character:FindFirstChild(Settings.SilentAim.HitPart) or target.Character:FindFirstChild("HumanoidRootPart")
-                if part and args[1] and args[2] then
-                    ShowTracer(part)
-                    local origin = args[1]
-                    local direction = (part.Position - origin).Unit * 1000
-                    args[2] = direction
-                    return oldNamecall(self, unpack(args))
-                end
-            end
         end
-        return oldNamecall(self, ...)
-    end)
-end)
-
--- Меню настроек Silent Aim
-local SilentContainer = Instance.new("Frame", SilentPage)
-SilentContainer.BackgroundTransparency = 1
-SilentContainer.Size = UDim2.new(1, 0, 0, 36)
-
-local SilentToggleBtn = Instance.new("TextButton", SilentContainer)
-SilentToggleBtn.BackgroundColor3 = Color3.fromRGB(18, 14, 28)
-SilentToggleBtn.Size = UDim2.new(1, -42, 1, 0)
-SilentToggleBtn.Font = Enum.Font.GothamSemibold
-SilentToggleBtn.Text = "Silent Aim: OFF"
-SilentToggleBtn.TextColor3 = Color3.fromRGB(190, 180, 210)
-SilentToggleBtn.TextSize = 12
-Instance.new("UICorner", SilentToggleBtn).CornerRadius = UDim.new(0, 8)
-local stStroke = Instance.new("UIStroke", SilentToggleBtn)
-stStroke.Color = Color3.fromRGB(90, 40, 160)
-stStroke.Thickness = 1.2
-
-local GearBtn = Instance.new("TextButton", SilentContainer)
-GearBtn.BackgroundColor3 = Color3.fromRGB(22, 16, 34)
-GearBtn.Position = UDim2.new(1, -36, 0, 0)
-GearBtn.Size = UDim2.new(0, 36, 1, 0)
-GearBtn.Font = Enum.Font.GothamBold
-GearBtn.Text = "⚙️"
-GearBtn.TextColor3 = Color3.fromRGB(220, 180, 255)
-GearBtn.TextSize = 14
-Instance.new("UICorner", GearBtn).CornerRadius = UDim.new(0, 8)
-local gStroke = Instance.new("UIStroke", GearBtn)
-gStroke.Color = Color3.fromRGB(90, 40, 160)
-gStroke.Thickness = 1.2
-
-local silentActive = false
-SilentToggleBtn.MouseButton1Click:Connect(function()
-    silentActive = not silentActive
-    Settings.SilentAim.Enabled = silentActive
-    if silentActive then
-        SilentToggleBtn.BackgroundColor3 = Color3.fromRGB(110, 25, 200)
-        SilentToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        SilentToggleBtn.Text = "Silent Aim: ON"
-    else
-        SilentToggleBtn.BackgroundColor3 = Color3.fromRGB(18, 14, 28)
-        SilentToggleBtn.TextColor3 = Color3.fromRGB(190, 180, 210)
-        SilentToggleBtn.Text = "Silent Aim: OFF"
     end
-end)
 
-local SettingsPanel = Instance.new("Frame", SilentPage)
-SettingsPanel.BackgroundColor3 = Color3.fromRGB(16, 12, 24)
-SettingsPanel.Size = UDim2.new(1, 0, 0, 140)
-SettingsPanel.Visible = false
-Instance.new("UICorner", SettingsPanel).CornerRadius = UDim.new(0, 8)
-local spStroke = Instance.new("UIStroke", SettingsPanel)
-spStroke.Color = Color3.fromRGB(140, 40, 255)
-spStroke.Thickness = 1.2
+    return OldNamecall(self, unpack(args))
+end))
 
-local spLayout = Instance.new("UIListLayout", SettingsPanel)
-spLayout.SortOrder = Enum.SortOrder.LayoutOrder
-spLayout.Padding = UDim.new(0, 6)
-spLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-
-local FOVLabel = Instance.new("TextLabel", SettingsPanel)
-FOVLabel.BackgroundTransparency = 1
-FOVLabel.Size = UDim2.new(1, -16, 0, 24)
-FOVLabel.Font = Enum.Font.GothamBold
-FOVLabel.Text = "FOV: " .. Settings.SilentAim.FOV
-FOVLabel.TextColor3 = Color3.fromRGB(210, 160, 255)
-FOVLabel.TextSize = 11
-FOVLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-local FOVControlFrame = Instance.new("Frame", SettingsPanel)
-FOVControlFrame.BackgroundTransparency = 1
-FOVControlFrame.Size = UDim2.new(1, -16, 0, 28)
-local fovLayout = Instance.new("UIListLayout", FOVControlFrame)
-fovLayout.FillDirection = Enum.FillDirection.Horizontal
-fovLayout.Padding = UDim.new(0, 6)
-
-local function CreateFOVBtn(text, delta)
-    local btn = Instance.new("TextButton", FOVControlFrame)
-    btn.BackgroundColor3 = Color3.fromRGB(22, 16, 34)
-    btn.Size = UDim2.new(0.48, 0, 1, 0)
-    btn.Font = Enum.Font.GothamBold
-    btn.Text = text
-    btn.TextColor3 = Color3.fromRGB(200, 180, 230)
-    btn.TextSize = 11
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-    
-    btn.MouseButton1Click:Connect(function()
-        Settings.SilentAim.FOV = math.clamp(Settings.SilentAim.FOV + delta, 50, 500)
-        FOVLabel.Text = "FOV: " .. Settings.SilentAim.FOV
-        SilentFOVCircle.Radius = Settings.SilentAim.FOV
-    end)
-end
-CreateFOVBtn("[-] FOV (-25)", -25)
-CreateFOVBtn("[+] FOV (+25)", 25)
-
-local PartToggleBtn = Instance.new("TextButton", SettingsPanel)
-PartToggleBtn.BackgroundColor3 = Color3.fromRGB(22, 16, 34)
-PartToggleBtn.Size = UDim2.new(1, -16, 0, 28)
-PartToggleBtn.Font = Enum.Font.GothamBold
-PartToggleBtn.Text = "Цель: Голова (Head)"
-PartToggleBtn.TextColor3 = Color3.fromRGB(200, 180, 230)
-PartToggleBtn.TextSize = 11
-Instance.new("UICorner", PartToggleBtn).CornerRadius = UDim.new(0, 6)
-
-PartToggleBtn.MouseButton1Click:Connect(function()
-    if Settings.SilentAim.HitPart == "Head" then
-        Settings.SilentAim.HitPart = "HumanoidRootPart"
-        PartToggleBtn.Text = "Цель: Торс (HRP)"
-    else
-        Settings.SilentAim.HitPart = "Head"
-        PartToggleBtn.Text = "Цель: Голова (Head)"
-    end
-end)
-
-local TracerToggleBtn = Instance.new("TextButton", SettingsPanel)
-TracerToggleBtn.BackgroundColor3 = Color3.fromRGB(110, 25, 200)
-TracerToggleBtn.Size = UDim2.new(1, -16, 0, 28)
-TracerToggleBtn.Font = Enum.Font.GothamBold
-TracerToggleBtn.Text = "Белые Трейсеры: ON"
-TracerToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-TracerToggleBtn.TextSize = 11
-Instance.new("UICorner", TracerToggleBtn).CornerRadius = UDim.new(0, 6)
-
-TracerToggleBtn.MouseButton1Click:Connect(function()
-    Settings.SilentAim.Tracers = not Settings.SilentAim.Tracers
-    if Settings.SilentAim.Tracers then
-        TracerToggleBtn.BackgroundColor3 = Color3.fromRGB(110, 25, 200)
-        TracerToggleBtn.Text = "Белые Трейсеры: ON"
-    else
-        TracerToggleBtn.BackgroundColor3 = Color3.fromRGB(22, 16, 34)
-        TracerToggleBtn.Text = "Белые Трейсеры: OFF"
-    end
-end)
-
-GearBtn.MouseButton1Click:Connect(function()
-    SettingsPanel.Visible = not SettingsPanel.Visible
-end)
-
--- ==================== ESP ЛОГИКА ====================
 local function RemoveHighlight(player)
     if Settings.ESP.ActiveHighlights[player] then
         Settings.ESP.ActiveHighlights[player]:Destroy()
@@ -688,7 +762,55 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Инициализация кнопок ESP в меню
+CreateToggle(AimbotPage, "Aimbot Master", false, function(state)
+    Settings.Aimbot.Enabled = state
+    AimFloatBtn.Visible = state
+    if not state then 
+        AimActive = false
+        AimFloatBtn.BackgroundColor3 = Color3.fromRGB(20, 15, 32)
+        AimFloatBtn.TextColor3 = Color3.fromRGB(200, 150, 255)
+        AimFloatBtn.Text = "🎯 AIM: OFF"
+        Settings.Aimbot.LockedTarget = nil
+    end
+end)
+
+CreateToggle(AimbotPage, "Silent Aim (Raycast)", false, function(state)
+    Settings.Aimbot.SilentAim = state
+end)
+
+-- // UI BUTTONS FOR FOV AND WHITELIST IN MENU
+local FovGearBtn = Instance.new("TextButton", AimbotPage)
+FovGearBtn.BackgroundColor3 = Color3.fromRGB(20, 15, 32)
+FovGearBtn.Size = UDim2.new(1, 0, 0, 38)
+FovGearBtn.Font = Enum.Font.GothamSemibold
+FovGearBtn.Text = "⚙️ Adjust FOV Radius"
+FovGearBtn.TextColor3 = Color3.fromRGB(190, 180, 210)
+FovGearBtn.TextSize = 12
+Instance.new("UICorner", FovGearBtn).CornerRadius = UDim.new(0, 8)
+local fovStroke = Instance.new("UIStroke", FovGearBtn)
+fovStroke.Color = Color3.fromRGB(90, 40, 160)
+fovStroke.Thickness = 1.2
+FovGearBtn.MouseButton1Click:Connect(function()
+    FovFrame.Visible = not FovFrame.Visible
+    WlFrame.Visible = false
+end)
+
+local WlShieldBtn = Instance.new("TextButton", AimbotPage)
+WlShieldBtn.BackgroundColor3 = Color3.fromRGB(20, 15, 32)
+WlShieldBtn.Size = UDim2.new(1, 0, 0, 38)
+WlShieldBtn.Font = Enum.Font.GothamSemibold
+WlShieldBtn.Text = "🛡️ Manage Whitelist"
+WlShieldBtn.TextColor3 = Color3.fromRGB(190, 180, 210)
+WlShieldBtn.TextSize = 12
+Instance.new("UICorner", WlShieldBtn).CornerRadius = UDim.new(0, 8)
+local wlStroke = Instance.new("UIStroke", WlShieldBtn)
+wlStroke.Color = Color3.fromRGB(90, 40, 160)
+wlStroke.Thickness = 1.2
+WlShieldBtn.MouseButton1Click:Connect(function()
+    WlFrame.Visible = not WlFrame.Visible
+    FovFrame.Visible = false
+end)
+
 CreateToggle(ESPPage, "Master ESP", false, function(state)
     Settings.ESP.Enabled = state
     if not state then
