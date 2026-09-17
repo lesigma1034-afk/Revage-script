@@ -1,4 +1,11 @@
 -- COCITESCRIPT | Da Hood & Flame Hood Edition (Clean Startup & Anti-Freeze)
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
 pcall(function()
     RunService:UnbindFromRenderStep("CociteCamLock")
     if _G.CociteConnections then
@@ -13,31 +20,20 @@ pcall(function()
     end
     local prevCoreGui = game:GetService("CoreGui"):FindFirstChild("CociteCyberGui")
     if prevCoreGui then prevCoreGui:Destroy() end
-    if game:GetService("Players").LocalPlayer and game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui") then
-        local prevPlayerGui = game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("CociteCyberGui")
+    if LocalPlayer and LocalPlayer:FindFirstChild("PlayerGui") then
+        local prevPlayerGui = LocalPlayer.PlayerGui:FindFirstChild("CociteCyberGui")
         if prevPlayerGui then prevPlayerGui:Destroy() end
     end
-    if workspace:FindFirstChild("CociteCamProxy") then
-        workspace.CociteCamProxy:Destroy()
-    end
-    if workspace:FindFirstChild("CociteTPGhost") then
-        workspace.CociteTPGhost:Destroy()
-    end
-    local char = game:GetService("Players").LocalPlayer and game:GetService("Players").LocalPlayer.Character
-    if char and char:FindFirstChildOfClass("Humanoid") and workspace.CurrentCamera then
-        workspace.CurrentCamera.CameraSubject = char:FindFirstChildOfClass("Humanoid")
-        workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
+    local char = LocalPlayer and LocalPlayer.Character
+    if char and char:FindFirstChildOfClass("Humanoid") and Camera then
+        if Camera.CameraSubject ~= char:FindFirstChildOfClass("Humanoid") then
+            Camera.CameraSubject = char:FindFirstChildOfClass("Humanoid")
+        end
+        Camera.CameraType = Enum.CameraType.Custom
     end
 end)
 _G.CociteConnections = {}
 _G.CociteDrawings = {}
-
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
-local LocalPlayer = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
 
 local Settings = {
     Aimbot = {
@@ -45,15 +41,17 @@ local Settings = {
         LockedTarget = nil,
         AimPart = "Head",
         FOV = 180,
-        ShowFOV = true,
+        ShowFOV = false,
+        Smoothness = 0.15,
         Prediction = 0.135,
         UsePrediction = true,
     },
     SilentAim = {
         Enabled = false,
-        AimPart = "Head",
+        AimPart = "HumanoidRootPart",
         FOV = 180,
         ShowFOV = true,
+        Tracers = false,
         HitChance = 100,
         Prediction = 0.135,
         UsePrediction = true,
@@ -590,6 +588,7 @@ LoginBtn.MouseButton1Click:Connect(function()
         AuthFrame:Destroy()
         
         ToggleButton.Visible = true
+        AimFloatBtn.Visible = true
         MainFrame.Visible = true
         TweenService:Create(MainFrame, TweenInfo.new(0.5), {BackgroundTransparency = 0}):Play()
         TweenService:Create(MainStroke, TweenInfo.new(0.5), {Transparency = 0}):Play()
@@ -600,22 +599,53 @@ LoginBtn.MouseButton1Click:Connect(function()
 end)
 
 local AimFloatBtn = Instance.new("TextButton", ScreenGui)
+AimFloatBtn.Name = "CociteAimFloatBtn"
 AimFloatBtn.BackgroundColor3 = Color3.fromRGB(20, 15, 32)
 AimFloatBtn.Position = UDim2.new(0.8, 0, 0.4, 0)
-AimFloatBtn.Size = UDim2.new(0, 100, 0, 46)
+AimFloatBtn.Size = UDim2.new(0, 110, 0, 46)
 AimFloatBtn.Font = Enum.Font.GothamBold
-AimFloatBtn.Text = "🎯 AIM: OFF"
+AimFloatBtn.Text = "🎯 SILENT: OFF"
 AimFloatBtn.TextColor3 = Color3.fromRGB(200, 150, 255)
 AimFloatBtn.TextSize = 12
 AimFloatBtn.Visible = false
 AimFloatBtn.Active = true
 AimFloatBtn.Draggable = true
 Instance.new("UICorner", AimFloatBtn).CornerRadius = UDim.new(0, 10)
+local aimFloatStroke = Instance.new("UIStroke", AimFloatBtn)
+aimFloatStroke.Color = Color3.fromRGB(120, 40, 200)
+aimFloatStroke.Thickness = 1.5
+
+local updatingFromFloat = false
+local silentToggleObj = nil
+
+local function UpdateSilentAimState(state, fromUI)
+    Settings.SilentAim.Enabled = state
+    if state then
+        AimFloatBtn.BackgroundColor3 = Color3.fromRGB(110, 25, 200)
+        AimFloatBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        AimFloatBtn.Text = "🎯 SILENT: ON"
+        aimFloatStroke.Color = Color3.fromRGB(210, 90, 255)
+    else
+        AimFloatBtn.BackgroundColor3 = Color3.fromRGB(20, 15, 32)
+        AimFloatBtn.TextColor3 = Color3.fromRGB(200, 150, 255)
+        AimFloatBtn.Text = "🎯 SILENT: OFF"
+        aimFloatStroke.Color = Color3.fromRGB(120, 40, 200)
+    end
+    if not fromUI and silentToggleObj and silentToggleObj.Set then
+        updatingFromFloat = true
+        silentToggleObj:Set(state)
+        updatingFromFloat = false
+    end
+end
+
+AimFloatBtn.MouseButton1Click:Connect(function()
+    UpdateSilentAimState(not Settings.SilentAim.Enabled, false)
+end)
 
 -- Core Targeting Logic
 local function GetCharacterAimPart(character, chosenPart)
     if not character then return nil end
-    local partName = chosenPart or "Head"
+    local partName = chosenPart or "HumanoidRootPart"
     if partName == "Random" then
         local parts = {"Head", "UpperTorso", "HumanoidRootPart"}
         partName = parts[math.random(1, #parts)]
@@ -639,6 +669,8 @@ local function GetPredictedPosition(part, usePred, predAmount)
     return pos
 end
 
+local isInternalRay = false
+
 local function IsWallCheckVisible(part, targetChar)
     if not Settings.SilentAim.WallCheck then return true end
     local localChar = LocalPlayer.Character
@@ -653,14 +685,57 @@ local function IsWallCheckVisible(part, targetChar)
     params.FilterDescendantsInstances = {localChar, Camera}
     params.IgnoreWater = true
 
+    isInternalRay = true
     local hit = workspace:Raycast(origin, dir, params)
+    isInternalRay = false
     if not hit or hit.Instance:IsDescendantOf(targetChar) then
         return true
     end
     return false
 end
 
-local function GetClosestToCenter()
+-- Equipped Tool Tracking for Shotgun Spread Detection
+local equippedToolName = nil
+local function OnCharacterAdded(char)
+    equippedToolName = nil
+    char.ChildAdded:Connect(function(child)
+        if child:IsA("Tool") then
+            equippedToolName = child.Name
+        end
+    end)
+    char.ChildRemoved:Connect(function(child)
+        if child:IsA("Tool") and equippedToolName == child.Name then
+            equippedToolName = nil
+        end
+    end)
+end
+
+if LocalPlayer.Character then
+    OnCharacterAdded(LocalPlayer.Character)
+    for _, child in ipairs(LocalPlayer.Character:GetChildren()) do
+        if child:IsA("Tool") then
+            equippedToolName = child.Name
+            break
+        end
+    end
+end
+LocalPlayer.CharacterAdded:Connect(OnCharacterAdded)
+
+-- Shotgun Spread & Ray Direction Calculation (from reference)
+local function CalcRayDirection(origin, targetPos, spread)
+    local dir = (targetPos - origin).Unit
+    if spread and spread > 0 then
+        local spreadDist = spread * ((targetPos - origin).Magnitude / 100)
+        dir = ((targetPos + Vector3.new(
+            math.random(-spreadDist * 1000, spreadDist * 1000) / 1000,
+            math.random(-spreadDist * 1000, spreadDist * 1000) / 1000,
+            math.random(-spreadDist * 1000, spreadDist * 1000) / 1000
+        )) - origin).Unit
+    end
+    return dir * 1000
+end
+
+local function GetClosestToCenterForCamLock()
     local closestP = nil
     local shortestDist = Settings.Aimbot.FOV
     local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
@@ -684,64 +759,108 @@ local function GetClosestToCenter()
     return closestP
 end
 
-local function GetSilentAimTarget()
-    if not Settings.SilentAim.Enabled then return nil, nil end
-    if Settings.SilentAim.HitChance < 100 and math.random(1, 100) > Settings.SilentAim.HitChance then
-        return nil, nil
-    end
+-- Active Target Caching
+local currentSilentTarget = nil
+local currentSilentTargetPart = nil
+local currentSilentAimPos = nil
 
+-- Visuals: FOV Circle & Snapline Tracer
+local SilentFOVCircle = nil
+local SilentTracerLine = nil
+
+pcall(function()
+    if Drawing and Drawing.new then
+        local sCircle = Drawing.new("Circle")
+        sCircle.Visible = false
+        sCircle.Filled = false
+        sCircle.Thickness = 1.5
+        sCircle.Color = Color3.fromRGB(180, 60, 255)
+        sCircle.Transparency = 0.7
+        sCircle.Radius = Settings.SilentAim.FOV
+        table.insert(_G.CociteDrawings, sCircle)
+        SilentFOVCircle = sCircle
+
+        local sLine = Drawing.new("Line")
+        sLine.Visible = false
+        sLine.Thickness = 1.5
+        sLine.Color = Color3.fromRGB(200, 80, 255)
+        sLine.Transparency = 0.8
+        table.insert(_G.CociteDrawings, sLine)
+        SilentTracerLine = sLine
+    end
+end)
+
+-- Main RenderStepped: Select Closest Target & Update Visuals
+RunService.RenderStepped:Connect(function()
     local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    local shortestDist = Settings.SilentAim.FOV
     local bestTarget = nil
     local bestPart = nil
-    local shortestDist = Settings.SilentAim.FOV
+    local bestPos = nil
 
-    for _, player in ipairs(Players:GetPlayers()) do
-        if IsValidTarget(player) then
-            local part = GetCharacterAimPart(player.Character, Settings.SilentAim.AimPart)
-            if part and IsWallCheckVisible(part, player.Character) then
-                local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
-                if onScreen and screenPos.Z > 0 then
-                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
-                    if dist <= shortestDist then
-                        shortestDist = dist
-                        bestTarget = player
-                        bestPart = part
+    if Settings.SilentAim.Enabled then
+        for _, player in ipairs(Players:GetPlayers()) do
+            if IsValidTarget(player) then
+                local part = GetCharacterAimPart(player.Character, Settings.SilentAim.AimPart)
+                if part then
+                    local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                    if onScreen and screenPos.Z > 0 then
+                        local dist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
+                        if dist <= shortestDist then
+                            if not Settings.SilentAim.WallCheck or IsWallCheckVisible(part, player.Character) then
+                                shortestDist = dist
+                                bestTarget = player
+                                bestPart = part
+                                bestPos = GetPredictedPosition(part, Settings.SilentAim.UsePrediction, Settings.SilentAim.Prediction)
+                            end
+                        end
                     end
                 end
             end
         end
     end
-    return bestTarget, bestPart
-end
 
-local function RedirectRay(origin, direction, targetPart)
-    local targetPos = GetPredictedPosition(targetPart, Settings.SilentAim.UsePrediction, Settings.SilentAim.Prediction)
-    local mag = direction.Magnitude
-    if mag < 1 then mag = 1000 end
-    return (targetPos - origin).Unit * mag
-end
+    currentSilentTarget = bestTarget
+    currentSilentTargetPart = bestPart
+    currentSilentAimPos = bestPos
+
+    -- Update FOV Circle
+    if SilentFOVCircle then
+        SilentFOVCircle.Visible = Settings.SilentAim.Enabled and Settings.SilentAim.ShowFOV
+        SilentFOVCircle.Radius = Settings.SilentAim.FOV
+        SilentFOVCircle.Position = center
+    end
+
+    -- Update Tracers (Snapline)
+    if SilentTracerLine then
+        if Settings.SilentAim.Enabled and Settings.SilentAim.Tracers and currentSilentTargetPart then
+            local screenPos, onScreen = Camera:WorldToViewportPoint(currentSilentTargetPart.Position)
+            if onScreen and screenPos.Z > 0 then
+                SilentTracerLine.From = center
+                SilentTracerLine.To = Vector2.new(screenPos.X, screenPos.Y)
+                SilentTracerLine.Visible = true
+            else
+                SilentTracerLine.Visible = false
+            end
+        else
+            SilentTracerLine.Visible = false
+        end
+    end
+end)
 
 -- [[ 2026 DA HOOD SILENT AIM ENGINE ]]
+-- Hook 1: Fast __index for Mouse.Hit & Mouse.Target
 local Mouse = LocalPlayer:GetMouse()
-
--- Hook 1: __index for Mouse.Hit & Mouse.Target (Universal Da Hood gun support)
 pcall(function()
     if hookmetamethod and newcclosure and checkcaller then
         local oldIndex
         oldIndex = hookmetamethod(game, "__index", newcclosure(function(self, key)
-            if not checkcaller() and Settings.SilentAim.Enabled then
-                if self == Mouse or (typeof(self) == "Instance" and self:IsA("Mouse")) then
+            if not checkcaller() and (key == "Hit" or key == "hit" or key == "Target" or key == "target") and (self == Mouse) then
+                if Settings.SilentAim.Enabled and currentSilentAimPos then
                     if key == "Hit" or key == "hit" then
-                        local _, targetPart = GetSilentAimTarget()
-                        if targetPart then
-                            local predictedPos = GetPredictedPosition(targetPart, Settings.SilentAim.UsePrediction, Settings.SilentAim.Prediction)
-                            return CFrame.new(predictedPos)
-                        end
-                    elseif key == "Target" or key == "target" then
-                        local _, targetPart = GetSilentAimTarget()
-                        if targetPart then
-                            return targetPart
-                        end
+                        return CFrame.new(currentSilentAimPos)
+                    elseif (key == "Target" or key == "target") and currentSilentTargetPart then
+                        return currentSilentTargetPart
                     end
                 end
             end
@@ -750,55 +869,52 @@ pcall(function()
     end
 end)
 
--- Hook 2: __namecall for Da Hood MainEvent & Raycast
+-- Hook 2: __namecall for Raycast & MainEvent
 pcall(function()
     if hookmetamethod and getnamecallmethod and newcclosure and checkcaller then
         local oldNamecall
         oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(...)
-            local self = ...
             local method = getnamecallmethod()
             local args = {...}
+            local self = args[1]
 
-            if not checkcaller() and Settings.SilentAim.Enabled then
-                if method == "FireServer" and tostring(self) == "MainEvent" then
-                    local eventArg = tostring(args[2] or args[1] or "")
-                    if eventArg == "UpdateMousePos" or eventArg == "UpdateMousePosI" or string.find(string.lower(eventArg), "mousepos") then
-                        local _, targetPart = GetSilentAimTarget()
-                        if targetPart then
-                            local predictedPos = GetPredictedPosition(targetPart, Settings.SilentAim.UsePrediction, Settings.SilentAim.Prediction)
-                            if args[2] == eventArg then
-                                args[3] = predictedPos
-                            else
-                                args[2] = predictedPos
-                            end
-                            return oldNamecall(table.unpack(args))
-                        end
-                    end
-                elseif self == workspace then
-                    if method == "Raycast" and typeof(args[2]) == "Vector3" and typeof(args[3]) == "Vector3" then
-                        local _, targetPart = GetSilentAimTarget()
-                        if targetPart then
+            if not checkcaller() and not isInternalRay and Settings.SilentAim.Enabled and currentSilentAimPos then
+                local willHit = true
+                if Settings.SilentAim.HitChance < 100 then
+                    willHit = (math.random(1, 100) <= Settings.SilentAim.HitChance)
+                end
+
+                if willHit then
+                    if self == workspace and method == "Raycast" then
+                        if typeof(args[2]) == "Vector3" and typeof(args[3]) == "Vector3" then
+                            local origin = args[2]
+                            local targetPos = currentSilentAimPos
+
                             if Settings.SilentAim.TPBullet then
-                                args[2] = targetPart.Position + Vector3.new(0, 0.5, 0)
+                                args[2] = targetPos + Vector3.new(0, 0.5, 0)
                                 args[3] = Vector3.new(0, -1, 0)
                             else
-                                args[3] = RedirectRay(args[2], args[3], targetPart)
+                                local toolName = equippedToolName or ""
+                                local isShotgun = string.find(string.lower(toolName), "double")
+                                               or string.find(string.lower(toolName), "tactical")
+                                               or string.find(string.lower(toolName), "shotgun")
+                                if isShotgun then
+                                    args[3] = CalcRayDirection(origin, targetPos, 6)
+                                else
+                                    args[3] = CalcRayDirection(origin, targetPos)
+                                end
                             end
                             return oldNamecall(table.unpack(args))
                         end
-                    elseif method == "FindPartOnRay" or method == "FindPartOnRayWithIgnoreList" or method == "FindPartOnRayWithWhitelist" then
-                        local ray = args[2]
-                        if typeof(ray) == "Ray" then
-                            local _, targetPart = GetSilentAimTarget()
-                            if targetPart then
-                                if Settings.SilentAim.TPBullet then
-                                    args[2] = Ray.new(targetPart.Position + Vector3.new(0, 0.5, 0), Vector3.new(0, -1, 0))
-                                else
-                                    local newDir = RedirectRay(ray.Origin, ray.Direction, targetPart)
-                                    args[2] = Ray.new(ray.Origin, newDir)
-                                end
-                                return oldNamecall(table.unpack(args))
+                    elseif method == "FireServer" and tostring(self) == "MainEvent" then
+                        local eventArg = tostring(args[2] or args[1] or "")
+                        if eventArg == "UpdateMousePos" or eventArg == "UpdateMousePosI" or string.find(string.lower(eventArg), "mousepos") then
+                            if args[2] == eventArg then
+                                args[3] = currentSilentAimPos
+                            else
+                                args[2] = currentSilentAimPos
                             end
+                            return oldNamecall(table.unpack(args))
                         end
                     end
                 end
@@ -809,95 +925,22 @@ pcall(function()
     end
 end)
 
-pcall(function()
-    if hookfunction and workspace.Raycast and checkcaller and newcclosure then
-        local oldRaycast
-        oldRaycast = hookfunction(workspace.Raycast, newcclosure(function(self, origin, direction, ...)
-            if not checkcaller() and Settings.SilentAim.Enabled and typeof(origin) == "Vector3" and typeof(direction) == "Vector3" then
-                local _, targetPart = GetSilentAimTarget()
-                if targetPart then
-                    if Settings.SilentAim.TPBullet then
-                        origin = targetPart.Position + Vector3.new(0, 0.5, 0)
-                        direction = Vector3.new(0, -1, 0)
-                    else
-                        direction = RedirectRay(origin, direction, targetPart)
-                    end
-                end
-            end
-            return oldRaycast(self, origin, direction, ...)
-        end))
-    end
-end)
-
--- Dynamic FOV Circle Drawing
-local AimbotFOVCircle = nil
-local SilentFOVCircle = nil
-
-pcall(function()
-    if Drawing and Drawing.new then
-        local aCircle = Drawing.new("Circle")
-        aCircle.Visible = false
-        aCircle.Filled = false
-        aCircle.Thickness = 1.5
-        aCircle.Color = Color3.fromRGB(160, 60, 255)
-        aCircle.Transparency = 0.7
-        aCircle.Radius = Settings.Aimbot.FOV
-        AimbotFOVCircle = aCircle
-
-        local sCircle = Drawing.new("Circle")
-        sCircle.Visible = false
-        sCircle.Filled = false
-        sCircle.Thickness = 1.5
-        sCircle.Color = Color3.fromRGB(255, 60, 160)
-        sCircle.Transparency = 0.7
-        sCircle.Radius = Settings.SilentAim.FOV
-        SilentFOVCircle = sCircle
-    end
-end)
-
-RunService.RenderStepped:Connect(function()
-    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-    if AimbotFOVCircle then
-        AimbotFOVCircle.Visible = Settings.Aimbot.Enabled and Settings.Aimbot.ShowFOV
-        AimbotFOVCircle.Radius = Settings.Aimbot.FOV
-        AimbotFOVCircle.Position = center
-    end
-    if SilentFOVCircle then
-        SilentFOVCircle.Visible = Settings.SilentAim.Enabled and Settings.SilentAim.ShowFOV
-        SilentFOVCircle.Radius = Settings.SilentAim.FOV
-        SilentFOVCircle.Position = center
-    end
-end)
-
-local AimActive = false
-AimFloatBtn.MouseButton1Click:Connect(function()
-    AimActive = not AimActive
-    if AimActive then
-        AimFloatBtn.BackgroundColor3 = Color3.fromRGB(110, 25, 200)
-        AimFloatBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        AimFloatBtn.Text = "🎯 AIM: ON"
-        Settings.Aimbot.LockedTarget = GetClosestToCenter()
-    else
-        AimFloatBtn.BackgroundColor3 = Color3.fromRGB(20, 15, 32)
-        AimFloatBtn.TextColor3 = Color3.fromRGB(200, 150, 255)
-        AimFloatBtn.Text = "🎯 AIM: OFF"
-        Settings.Aimbot.LockedTarget = nil
-    end
-end)
-
+-- Optional Smooth CamLock (never locks camera position, smooth rotation only)
 RunService:BindToRenderStep("CociteCamLock", Enum.RenderPriority.Camera.Value + 1, function()
-    if Settings.Aimbot.Enabled and AimActive then
+    if Settings.Aimbot.Enabled then
         local target = Settings.Aimbot.LockedTarget
         if target and IsValidTarget(target) then
             local part = GetCharacterAimPart(target.Character, Settings.Aimbot.AimPart)
             if part then
                 local aimPos = GetPredictedPosition(part, Settings.Aimbot.UsePrediction, Settings.Aimbot.Prediction)
                 if aimPos then
-                    Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, aimPos)
+                    local currentCamPos = Camera.CFrame.Position
+                    local targetRot = CFrame.lookAt(currentCamPos, aimPos)
+                    Camera.CFrame = Camera.CFrame:Lerp(targetRot, math.clamp(Settings.Aimbot.Smoothness or 0.2, 0.05, 1))
                 end
             end
         else
-            Settings.Aimbot.LockedTarget = GetClosestToCenter()
+            Settings.Aimbot.LockedTarget = GetClosestToCenterForCamLock()
         end
     end
 end)
@@ -1003,44 +1046,28 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- Populate AIMBOT Page Controls
-CreateSection(AimbotPage, "CAMERA LOCK AIMBOT")
+CreateSection(AimbotPage, "SILENT AIM (DA HOOD 2026 ENGINE)")
 
-CreateToggle(AimbotPage, "Aimbot Master", false, function(state)
-    Settings.Aimbot.Enabled = state
-    AimFloatBtn.Visible = state
-    if not state then 
-        AimActive = false
-        AimFloatBtn.BackgroundColor3 = Color3.fromRGB(20, 15, 32)
-        AimFloatBtn.TextColor3 = Color3.fromRGB(200, 150, 255)
-        AimFloatBtn.Text = "🎯 AIM: OFF"
-        Settings.Aimbot.LockedTarget = nil
+silentToggleObj = CreateToggle(AimbotPage, "Silent Aim Master", Settings.SilentAim.Enabled, function(state)
+    if not updatingFromFloat then
+        UpdateSilentAimState(state, true)
     end
 end)
 
-CreateCycle(AimbotPage, "Target Part", {"Head", "UpperTorso", "HumanoidRootPart", "Random"}, 1, function(val)
-    Settings.Aimbot.AimPart = val
-end)
-
-CreateToggle(AimbotPage, "Prediction", Settings.Aimbot.UsePrediction, function(state)
-    Settings.Aimbot.UsePrediction = state
-end)
-
-CreateSlider(AimbotPage, "Aimbot FOV", 30, 400, Settings.Aimbot.FOV, "px", 10, function(val)
-    Settings.Aimbot.FOV = val
-end)
-
-CreateToggle(AimbotPage, "Show Aimbot FOV", Settings.Aimbot.ShowFOV, function(state)
-    Settings.Aimbot.ShowFOV = state
-end)
-
-CreateSection(AimbotPage, "SILENT AIM")
-
-CreateToggle(AimbotPage, "Silent Aim Master", false, function(state)
-    Settings.SilentAim.Enabled = state
-end)
-
-CreateCycle(AimbotPage, "Silent Part", {"Head", "UpperTorso", "HumanoidRootPart", "Random"}, 1, function(val)
+CreateCycle(AimbotPage, "Silent Part", {"HumanoidRootPart", "Head", "UpperTorso", "Random"}, 1, function(val)
     Settings.SilentAim.AimPart = val
+end)
+
+CreateSlider(AimbotPage, "Silent FOV", 30, 500, Settings.SilentAim.FOV, "px", 10, function(val)
+    Settings.SilentAim.FOV = val
+end)
+
+CreateToggle(AimbotPage, "Show Silent FOV", Settings.SilentAim.ShowFOV, function(state)
+    Settings.SilentAim.ShowFOV = state
+end)
+
+CreateToggle(AimbotPage, "Silent Tracers", Settings.SilentAim.Tracers, function(state)
+    Settings.SilentAim.Tracers = state
 end)
 
 CreateSlider(AimbotPage, "Hit Chance", 10, 100, Settings.SilentAim.HitChance, "%", 5, function(val)
@@ -1051,20 +1078,33 @@ CreateToggle(AimbotPage, "Silent Prediction", Settings.SilentAim.UsePrediction, 
     Settings.SilentAim.UsePrediction = state
 end)
 
+CreateSlider(AimbotPage, "Prediction Amount", 0.05, 0.3, Settings.SilentAim.Prediction, "s", 0.005, function(val)
+    Settings.SilentAim.Prediction = val
+end)
+
 CreateToggle(AimbotPage, "Wall Check", Settings.SilentAim.WallCheck, function(state)
     Settings.SilentAim.WallCheck = state
 end)
 
-CreateSlider(AimbotPage, "Silent FOV", 30, 400, Settings.SilentAim.FOV, "px", 10, function(val)
-    Settings.SilentAim.FOV = val
-end)
-
-CreateToggle(AimbotPage, "Show Silent FOV", Settings.SilentAim.ShowFOV, function(state)
-    Settings.SilentAim.ShowFOV = state
-end)
-
 CreateToggle(AimbotPage, "TP Bullet (Instant Hit)", Settings.SilentAim.TPBullet, function(state)
     Settings.SilentAim.TPBullet = state
+end)
+
+CreateSection(AimbotPage, "CAMERA LOCK (OPTIONAL)")
+
+CreateToggle(AimbotPage, "CamLock Master", false, function(state)
+    Settings.Aimbot.Enabled = state
+    if not state then
+        Settings.Aimbot.LockedTarget = nil
+    end
+end)
+
+CreateCycle(AimbotPage, "CamLock Part", {"Head", "HumanoidRootPart", "UpperTorso"}, 1, function(val)
+    Settings.Aimbot.AimPart = val
+end)
+
+CreateSlider(AimbotPage, "CamLock Smoothing", 0.05, 1, Settings.Aimbot.Smoothness, "", 0.05, function(val)
+    Settings.Aimbot.Smoothness = val
 end)
 
 -- Populate ESP Page Controls
