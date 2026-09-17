@@ -1,25 +1,24 @@
--- COCITESCRIPT | Da Hood & Flame Hood Edition (v3, self-updating startup)
+-- COCITESCRIPT | Da Hood & Flame Hood Edition (v4, reference TpBullet)
+if _G.CociteVer == 4 then
+    return
+end
+_G.CociteVer = 4
+_G.CociteRunning = true
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local StarterGui = game:GetService("StarterGui")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
-if _G.CociteVer == 3 then
-    return
-end
-_G.CociteVer = 3
-_G.CociteRunning = true
-
--- убить старое меню прошлой версии в этой же сессии
+-- kill old GUI
 pcall(function()
-    for _, container in ipairs({ game:GetService("CoreGui"), LocalPlayer:WaitForChild("PlayerGui") }) do
+    for _, container in ipairs({game.CoreGui, LocalPlayer:WaitForChild("PlayerGui")}) do
         for _, g in ipairs(container:GetChildren()) do
-            if g.Name == "CociteCyberGui" then
-                g:Destroy()
-            end
+            if g.Name == "CociteCyberGui" then g:Destroy() end
         end
     end
 end)
@@ -42,10 +41,26 @@ local Settings = {
     Whitelist = {}
 }
 
--- // BULLET TP SETTINGS
-local BulletTP = {
-    Enabled = false,
-    Prediction = Vector3.new(0.147, 0.147, 0),
+-- // BULLET TP (reference TpBullet)
+getgenv().TpBullet = {
+    Settings = {
+        Enabled = false,
+        AimPart = "HumanoidRootPart",
+        Prediction = {
+            Enabled = true,
+            Horizontal = 0.147591,
+            Vertical = 0.147591
+        },
+        Circle = {
+            Visible = true,
+            Color = Color3.fromRGB(255, 255, 255),
+            Transparency = 1,
+            Thickness = 2,
+            NumSides = 100000,
+            Radius = 125,
+            Filled = false,
+        },
+    }
 }
 
 local function IsWhitelisted(player)
@@ -78,6 +93,7 @@ local function IsValidTarget(player)
     return true
 end
 
+-- // GUI SETUP
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "CociteCyberGui"
 pcall(function()
@@ -453,10 +469,7 @@ FovSlider.InputEnded:Connect(function(input)
 end)
 RunService.RenderStepped:Connect(function()
     if draggingFov then
-        local mousePos = UserInputService and UserInputService:GetMouseLocation() or Vector2.new(0,0)
-        if not UserInputService then
-            pcall(function() UserInputService = game:GetService("UserInputService") end)
-        end
+        local mousePos = UserInputService:GetMouseLocation()
         local relX = math.clamp((mousePos.X - FovSlider.AbsolutePosition.X) / FovSlider.AbsoluteSize.X, 0, 1)
         local newFov = math.floor(relX * 1000)
         Settings.Aimbot.FOV = newFov
@@ -682,100 +695,189 @@ OldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
     return OldNamecall(self, unpack(args))
 end))
 
--- // BULLET TP (Hit TP) v3: payload-based FireServer hook, имя ремута не нужно вообще
-local function GetBulletTarget()
-    return GetClosestToCenter()
+-- // BULLET TP (reference TpBullet from message(1).txt)
+local playerCharacter = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local playerHumanoidRootPart = playerCharacter:FindFirstChild("HumanoidRootPart") or playerCharacter:WaitForChild("HumanoidRootPart")
+local playerBackPack = LocalPlayer:FindFirstChild("Backpack") or LocalPlayer:WaitForChild("Backpack")
+
+local TargetedPlayer = nil
+local TargetedPlayerCharacter = nil
+local TargetedPlayerHumanoidRootPart = nil
+local TargetedPlayerAimPart = nil
+
+-- Fake tool
+local TpBulletTool = Instance.new("Tool")
+TpBulletTool.Parent = playerBackPack
+TpBulletTool.Name = "Tp Bullet"
+TpBulletTool.CanBeDropped = false
+TpBulletTool.Enabled = true
+TpBulletTool.ManualActivationOnly = false
+TpBulletTool.RequiresHandle = false
+TpBulletTool.ToolTip = "Tap on someone"
+TpBulletTool.TextureId = ""
+
+-- FOV Circle
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Visible = TpBullet.Settings.Circle.Visible
+FOVCircle.Color = TpBullet.Settings.Circle.Color
+FOVCircle.Transparency = TpBullet.Settings.Circle.Transparency
+FOVCircle.Thickness = TpBullet.Settings.Circle.Thickness
+FOVCircle.NumSides = TpBullet.Settings.Circle.NumSides
+FOVCircle.Radius = TpBullet.Settings.Circle.Radius
+FOVCircle.Filled = TpBullet.Settings.Circle.Filled
+
+-- Notification function
+local function Notification(Title, Description, Icon, Duration, Button1, Button2, Callback)
+    StarterGui:SetCore("SendNotification", {
+        Title = Title or "Basic Notification",
+        Text = Description or "Hello World!",
+        Icon = Icon or "",
+        Duration = Duration or 5,
+        Button1 = Button1 or "",
+        Button2 = Button2 or "",
+        Callback = Callback or function() return end
+    })
 end
 
-local function GetBulletPart(character)
-    return character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")
+-- Touch tracking for circle
+local function TouchingScreen(Touch, GameProcessedEvent)
+    if GameProcessedEvent then return end
+    local TouchedPlace = Touch.Position - Touch.Delta
+    FOVCircle.Position = Vector2.new(TouchedPlace.X, TouchedPlace.Y + 25)
 end
 
-local function BTPNamecallBody(oldFn, self, ...)
-    if not checkcaller() and BulletTP.Enabled and getnamecallmethod() == "FireServer" then
-        local isRemote = false
-        pcall(function() isRemote = self:IsA("RemoteEvent") end)
-        if isRemote then
-            local args = table.pack(...)
-            if args[1] == "UpdateMousePos" or args[1] == "MOUSE" then
-                local target = GetBulletTarget()
-                if target and target.Character then
-                    local part = GetBulletPart(target.Character)
-                    if part then
-                        args[2] = part.Position + Vector3.new(
-                            part.Velocity.X * BulletTP.Prediction.X,
-                            part.Velocity.Y * BulletTP.Prediction.Y,
-                            part.Velocity.Z * BulletTP.Prediction.Z
-                        )
-                        return oldFn(self, table.unpack(args, 1, args.n))
+UserInputService.TouchStarted:Connect(TouchingScreen)
+UserInputService.TouchMoved:Connect(TouchingScreen)
+UserInputService.TouchEnded:Connect(TouchingScreen)
+
+local function RefreshGripPos(Tool)
+    Tool.Parent = playerBackPack
+    Tool.Parent = playerCharacter
+end
+
+-- Grip teleport on each shot
+local function TpBulletFunction(Character)
+    local Connection = nil
+    local Tool = nil
+    local OldPos = nil
+    local SetPos = nil
+    local PointToObjectSpacePosition = nil
+    
+    Character.ChildAdded:Connect(function(Child)
+        if TpBullet.Settings.Enabled and Child:IsA("Tool") then
+            Tool = Child
+            OldPos = Tool.GripPos
+            Connection = Tool.Activated:Connect(function()
+                if TargetedPlayer and TargetedPlayerCharacter and TargetedPlayerHumanoidRootPart and Tool and TpBullet.Settings.Enabled then
+                    PointToObjectSpacePosition = playerHumanoidRootPart.CFrame:PointToObjectSpace(TargetedPlayerHumanoidRootPart.CFrame.Position)
+                    SetPos = Vector3.new(-PointToObjectSpacePosition.Z, 0, PointToObjectSpacePosition.X)
+                    Tool.GripPos = SetPos
+                    RefreshGripPos(Tool)
+                    task.wait(0.3)
+                    Tool.GripPos = OldPos
+                    RefreshGripPos(Tool)
+                end
+            end)
+        end
+    end)
+    
+    Character.ChildRemoved:Connect(function(Child)
+        if Child:IsA("Tool") then
+            Tool = nil
+            if Connection then
+                Connection:Disconnect()
+                Connection = nil
+            end
+        end
+    end)
+end
+
+pcall(TpBulletFunction, playerCharacter)
+LocalPlayer.CharacterAdded:Connect(function(char)
+    playerCharacter = char
+    playerHumanoidRootPart = char:FindFirstChild("HumanoidRootPart") or char:WaitForChild("HumanoidRootPart")
+    TpBulletFunction(char)
+end)
+
+-- Get closest player to circle
+local function GetClosestPlayer()
+    local ClosestPlayer = nil
+    local ShortestDistance = math.huge
+    for _, Player in pairs(Players:GetPlayers()) do
+        if Player ~= LocalPlayer and Player.Character and IsValidTarget(Player) then
+            for _, PlayerPart in ipairs(Player.Character:GetChildren()) do
+                if PlayerPart:IsA("BasePart") and PlayerPart.Transparency ~= 1 then
+                    local PlayerScreenPosition = Camera:WorldToViewportPoint(PlayerPart.Position)
+                    local PlayerDirection = (PlayerPart.Position - Camera.CFrame.Position).unit
+                    local DotProduct = Camera.CFrame.LookVector:Dot(PlayerDirection)
+                    if DotProduct > 0 then
+                        local MagnitudeDistance = (Vector2.new(PlayerScreenPosition.X, PlayerScreenPosition.Y) - FOVCircle.Position).Magnitude
+                        if MagnitudeDistance < ShortestDistance and MagnitudeDistance <= FOVCircle.Radius then
+                            ClosestPlayer = Player
+                            ShortestDistance = MagnitudeDistance
+                        end
                     end
                 end
             end
         end
     end
-    return oldFn(self, ...)
+    return ClosestPlayer
 end
 
-local BTPHookOK = false
-
-pcall(function()
-    if hookmetamethod and newcclosure then
-        local old
-        old = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-            return BTPNamecallBody(old, self, ...)
-        end))
-        BTPHookOK = true
+Players.PlayerRemoving:Connect(function(Player)
+    if Player == TargetedPlayer then
+        TargetedPlayer = nil
+        TargetedPlayerCharacter = nil
+        TargetedPlayerHumanoidRootPart = nil
+        TargetedPlayerAimPart = nil
     end
 end)
 
-if not BTPHookOK then
-    pcall(function()
-        local mt = getrawmetatable(game)
-        local old = mt.__namecall
-        setreadonly(mt, false)
-        mt.__namecall = function(self, ...)
-            return BTPNamecallBody(old, self, ...)
+-- Tool activation = toggle target
+TpBulletTool.Activated:Connect(function()
+    TpBullet.Settings.Enabled = not TpBullet.Settings.Enabled
+    if TpBullet.Settings.Enabled then
+        TargetedPlayer = GetClosestPlayer()
+        if TargetedPlayer then
+            TargetedPlayerCharacter = TargetedPlayer.Character or TargetedPlayer.CharacterAdded:Wait()
+            if TargetedPlayerCharacter then
+                TargetedPlayerHumanoidRootPart = TargetedPlayerCharacter:FindFirstChild("HumanoidRootPart") or TargetedPlayerCharacter:WaitForChild("HumanoidRootPart")
+                TargetedPlayerAimPart = TargetedPlayerCharacter:FindFirstChild(TpBullet.Settings.AimPart) or TargetedPlayerCharacter:WaitForChild(TpBullet.Settings.AimPart)
+            end
+            Notification("Found Target", "Target: " .. TargetedPlayer.DisplayName .. ".", nil, 3, nil, nil, nil)
+        elseif TargetedPlayer == nil then
+            Notification("No Target Found", "No Players Found Within FOV Circle.", nil, 3, nil, nil, nil)
         end
-        setreadonly(mt, true)
-        BTPHookOK = true
-    end)
-end
-
--- Layer 2: Tool GripPos redirect on activate
-local function HookCharacterGrip(character)
-    if not character then return end
-    character.ChildAdded:Connect(function(child)
-        if child:IsA("Tool") then
-            local oldGrip = child.GripPos
-            local conn
-            conn = child.Activated:Connect(function()
-                if not BulletTP.Enabled then return end
-                local target = GetBulletTarget()
-                if target and target.Character then
-                    local myHRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                    local part = GetBulletPart(target.Character)
-                    if myHRP and part then
-                        local objSpace = myHRP.CFrame:PointToObjectSpace(part.Position)
-                        oldGrip = child.GripPos
-                        child.GripPos = Vector3.new(-objSpace.Z, 0, objSpace.X)
-                        task.wait(0.3)
-                        pcall(function() child.GripPos = oldGrip end)
-                    end
-                end
-            end)
-            child.AncestryChanged:Connect(function()
-                if not child.Parent and conn then conn:Disconnect() end
-            end)
+    elseif not TpBullet.Settings.Enabled then
+        if TargetedPlayer then
+            Notification("Spared Target", "Spared: " .. TargetedPlayer.DisplayName .. ".", nil, 3, nil, nil, nil)
         end
-    end)
-end
-
-pcall(function() HookCharacterGrip(LocalPlayer.Character) end)
-LocalPlayer.CharacterAdded:Connect(function(char)
-    task.wait(0.5)
-    HookCharacterGrip(char)
+        TargetedPlayer = nil
+        TargetedPlayerCharacter = nil
+        TargetedPlayerHumanoidRootPart = nil
+        TargetedPlayerAimPart = nil
+    end
 end)
 
+-- Namecall hook for MainEvent payload
+pcall(function()
+    local RawMetaTable = getrawmetatable(game)
+    local OldNameCall = RawMetaTable.__namecall
+    setreadonly(RawMetaTable, false)
+    RawMetaTable.__namecall = newcclosure(function(self, ...)
+        local Arguments = {...}
+        local CallMethod = getnamecallmethod()
+        if TpBullet.Settings.Enabled and TargetedPlayer and TargetedPlayerCharacter and TargetedPlayerAimPart and string.lower(self.Name) == "mainevent" and CallMethod == "FireServer" then
+            if (Arguments[1] == "UpdateMousePos" or Arguments[1] == "MOUSE") then
+                Arguments[2] = TargetedPlayerAimPart.Position + (Vector3.new(TargetedPlayerAimPart.Velocity.X * TpBullet.Settings.Prediction.Horizontal, TargetedPlayerAimPart.Velocity.Y * TpBullet.Settings.Prediction.Vertical, 0))
+            end
+            return OldNameCall(self, unpack(Arguments))
+        end
+        return OldNameCall(self, ...)
+    end)
+end)
+
+-- ESP rendering
 local function RemoveHighlight(player)
     if Settings.ESP.ActiveHighlights[player] then
         Settings.ESP.ActiveHighlights[player]:Destroy()
@@ -876,6 +978,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
+-- Menu toggles
 CreateToggle(AimbotPage, "Aimbot Master", false, function(state)
     Settings.Aimbot.Enabled = state
     AimFloatBtn.Visible = state
@@ -893,7 +996,14 @@ CreateToggle(AimbotPage, "Silent Aim (Raycast)", false, function(state)
 end)
 
 CreateToggle(AimbotPage, "Bullet TP (Hit TP)", false, function(state)
-    BulletTP.Enabled = state
+    TpBullet.Settings.Enabled = state
+    FOVCircle.Visible = state and TpBullet.Settings.Circle.Visible
+    if not state then
+        TargetedPlayer = nil
+        TargetedPlayerCharacter = nil
+        TargetedPlayerHumanoidRootPart = nil
+        TargetedPlayerAimPart = nil
+    end
 end)
 
 local BTPStatusLabel = Instance.new("TextLabel", AimbotPage)
@@ -901,10 +1011,10 @@ BTPStatusLabel.BackgroundTransparency = 1
 BTPStatusLabel.Size = UDim2.new(1, 0, 0, 16)
 BTPStatusLabel.Font = Enum.Font.GothamSemibold
 BTPStatusLabel.TextSize = 10
-BTPStatusLabel.Text = BTPHookOK and "Bullet TP: HOOKED (payload mode, v3)" or "Bullet TP: no hook on this executor"
-BTPStatusLabel.TextColor3 = BTPHookOK and Color3.fromRGB(80, 255, 140) or Color3.fromRGB(255, 70, 90)
+BTPStatusLabel.Text = "Bullet TP: reference TpBullet v4"
+BTPStatusLabel.TextColor3 = Color3.fromRGB(80, 255, 140)
 
--- // UI BUTTONS FOR FOV AND WHITELIST IN MENU
+-- FOV and Whitelist buttons
 local FovGearBtn = Instance.new("TextButton", AimbotPage)
 FovGearBtn.BackgroundColor3 = Color3.fromRGB(20, 15, 32)
 FovGearBtn.Size = UDim2.new(1, 0, 0, 38)
