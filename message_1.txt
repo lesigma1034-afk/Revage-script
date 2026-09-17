@@ -1,4 +1,4 @@
--- COCITESCRIPT | Da Hood & Flame Hood Edition (v5: fixed core + new UI)
+-- COCITESCRIPT | Da Hood & Flame Hood Edition (v6: hard lock + live grip + dual-layer silent)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -9,10 +9,10 @@ local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
-if _G.CociteVer == 5 then
+if _G.CociteVer == 6 then
     return
 end
-_G.CociteVer = 5
+_G.CociteVer = 6
 _G.CociteRunning = true
 
 pcall(function()
@@ -25,7 +25,6 @@ pcall(function()
     end
 end)
 
--- // THEME
 local THEME = {
     bg = Color3.fromRGB(13, 10, 20),
     panel = Color3.fromRGB(20, 15, 32),
@@ -58,7 +57,6 @@ local Settings = {
     Whitelist = {}
 }
 
--- // Tp Bullet | Global Table (reference constants 1:1)
 local BulletTP = {
     Enabled = false,
     AimPart = "HumanoidRootPart",
@@ -82,6 +80,10 @@ local TargetedPlayer = nil
 local TargetedPlayerCharacter = nil
 local TargetedPlayerHumanoidRootPart = nil
 local TargetedPlayerAimPart = nil
+
+local RayRedirects = 0
+local MouseRedirects = 0
+local GripFrames = 0
 
 local function IsWhitelisted(player)
     for _, name in ipairs(Settings.Whitelist) do
@@ -148,8 +150,7 @@ local AuthHeader = Instance.new("Frame", AuthFrame)
 AuthHeader.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 AuthHeader.Size = UDim2.new(1, 0, 0, 48)
 Gradient(AuthHeader, THEME.accent1, THEME.accent2, 0)
-local ahCorner = Instance.new("UICorner", AuthHeader)
-ahCorner.CornerRadius = UDim.new(0, 16)
+Instance.new("UICorner", AuthHeader).CornerRadius = UDim.new(0, 16)
 
 local AuthTitle = Instance.new("TextLabel", AuthHeader)
 AuthTitle.BackgroundTransparency = 1
@@ -225,15 +226,6 @@ LoginBtn.TextSize = 11
 Gradient(LoginBtn, THEME.accent1, THEME.accent2, 0)
 Instance.new("UICorner", LoginBtn).CornerRadius = UDim.new(0, 10)
 
-local tweenInfo = TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-TweenService:Create(AuthFrame, tweenInfo, {BackgroundTransparency = 0}):Play()
-TweenService:Create(AuthTitle, tweenInfo, {TextTransparency = 0}):Play()
-TweenService:Create(WelcomeLabel, tweenInfo, {TextTransparency = 0}):Play()
-TweenService:Create(TextBox, tweenInfo, {TextTransparency = 0}):Play()
-TweenService:Create(StatusLabel, tweenInfo, {TextTransparency = 0}):Play()
-TweenService:Create(PasteBtn, tweenInfo, {TextTransparency = 0}):Play()
-TweenService:Create(LoginBtn, tweenInfo, {TextTransparency = 0}):Play()
-
 PasteBtn.MouseButton1Click:Connect(function()
     if getclipboard then
         local text = getclipboard()
@@ -259,7 +251,7 @@ local tbStroke = Instance.new("UIStroke", ToggleButton)
 tbStroke.Color = THEME.accent1
 tbStroke.Thickness = 2
 
--- // MAIN FRAME (new skin)
+-- // MAIN FRAME
 local MainFrame = Instance.new("Frame", ScreenGui)
 MainFrame.Name = "MainFrame"
 MainFrame.BackgroundColor3 = THEME.bg
@@ -295,7 +287,7 @@ VerPill.BackgroundTransparency = 0.65
 VerPill.Position = UDim2.new(1, -64, 0.5, -10)
 VerPill.Size = UDim2.new(0, 26, 0, 20)
 VerPill.Font = Enum.Font.GothamBold
-VerPill.Text = "v5"
+VerPill.Text = "v6"
 VerPill.TextColor3 = Color3.fromRGB(255, 255, 255)
 VerPill.TextSize = 10
 Instance.new("UICorner", VerPill).CornerRadius = UDim.new(0, 6)
@@ -340,7 +332,7 @@ local TabButtons = {}
 
 local function CreateTab(tabName)
     local tabBtn = Instance.new("TextButton", TabBar)
-    tabBtn.BackgroundColor3 = THEME.panel2
+    tabBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     tabBtn.Size = UDim2.new(0, 165, 0, 28)
     tabBtn.Font = Enum.Font.GothamBold
     tabBtn.Text = tabName
@@ -348,7 +340,7 @@ local function CreateTab(tabName)
     tabBtn.TextSize = 11
     tabBtn.AutoButtonColor = false
     Instance.new("UICorner", tabBtn).CornerRadius = UDim.new(0, 7)
-    local tabGrad = Gradient(tabBtn, THEME.panel2, THEME.panel2, 0)
+    Gradient(tabBtn, THEME.panel2, THEME.panel2, 0)
 
     local pageFrame = Instance.new("ScrollingFrame", ContentContainer)
     pageFrame.BackgroundTransparency = 1
@@ -366,14 +358,12 @@ local function CreateTab(tabName)
     tabBtn.MouseButton1Click:Connect(function()
         for name, page in pairs(Tabs) do
             page.Visible = false
-            TabButtons[name].BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-            Gradient(TabButtons[name], THEME.panel2, THEME.panel2, 0)
             TabButtons[name].TextColor3 = THEME.muted
+            Gradient(TabButtons[name], THEME.panel2, THEME.panel2, 0)
         end
         pageFrame.Visible = true
-        tabBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        Gradient(tabBtn, THEME.accent1, THEME.accent2, 0)
         tabBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        Gradient(tabBtn, THEME.accent1, THEME.accent2, 0)
     end)
 
     Tabs[tabName] = pageFrame
@@ -385,11 +375,10 @@ local AimbotPage = CreateTab("AIMBOT")
 local ESPPage = CreateTab("ESP")
 
 Tabs["AIMBOT"].Visible = true
-TabButtons["AIMBOT"].BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-Gradient(TabButtons["AIMBOT"], THEME.accent1, THEME.accent2, 0)
 TabButtons["AIMBOT"].TextColor3 = Color3.fromRGB(255, 255, 255)
+Gradient(TabButtons["AIMBOT"], THEME.accent1, THEME.accent2, 0)
 
--- // CREATE TOGGLE v2 (gradient + knob)
+-- // TOGGLE v2 (label не режется нобом)
 local function CreateToggle(parent, text, defaultState, callback)
     local btn = Instance.new("TextButton", parent)
     btn.Size = UDim2.new(1, 0, 0, 40)
@@ -397,16 +386,21 @@ local function CreateToggle(parent, text, defaultState, callback)
     btn.AutoButtonColor = false
     btn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     local btnGrad = Gradient(btn, THEME.panel, THEME.panel2, 90)
-    local corner = Instance.new("UICorner", btn)
-    corner.CornerRadius = UDim.new(0, 10)
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 10)
     local stroke = Instance.new("UIStroke", btn)
     stroke.Color = THEME.stroke
     stroke.Thickness = 1.2
 
+    local knob = Instance.new("Frame", btn)
+    knob.Size = UDim2.new(0, 18, 0, 18)
+    knob.Position = UDim2.new(0, 8, 0.5, -9)
+    knob.BackgroundColor3 = THEME.muted
+    Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+
     local label = Instance.new("TextLabel", btn)
     label.BackgroundTransparency = 1
-    label.Position = UDim2.new(0, 14, 0, 0)
-    label.Size = UDim2.new(1, -96, 1, 0)
+    label.Position = UDim2.new(0, 34, 0, 0)
+    label.Size = UDim2.new(1, -104, 1, 0)
     label.Font = Enum.Font.GothamSemibold
     label.TextSize = 12
     label.Text = text
@@ -420,12 +414,6 @@ local function CreateToggle(parent, text, defaultState, callback)
     stateLabel.Font = Enum.Font.GothamBold
     stateLabel.TextSize = 10
     stateLabel.TextXAlignment = Enum.TextXAlignment.Right
-
-    local knob = Instance.new("Frame", btn)
-    knob.Size = UDim2.new(0, 18, 0, 18)
-    knob.Position = UDim2.new(0, 8, 0.5, -9)
-    knob.BackgroundColor3 = THEME.muted
-    Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
 
     local active = defaultState or false
 
@@ -533,11 +521,11 @@ local lkStroke = Instance.new("UIStroke", LockBtn)
 lkStroke.Color = THEME.stroke
 lkStroke.Thickness = 1.5
 
--- // FOV FRAME
+-- // FOV FRAME (+ слайдер + кнопки - / +)
 local FovFrame = Instance.new("Frame", ScreenGui)
 FovFrame.BackgroundColor3 = THEME.bg
-FovFrame.Position = UDim2.new(0.5, -120, 0.5, -70)
-FovFrame.Size = UDim2.new(0, 240, 0, 140)
+FovFrame.Position = UDim2.new(0.5, -120, 0.5, -80)
+FovFrame.Size = UDim2.new(0, 240, 0, 160)
 FovFrame.Visible = false
 FovFrame.Active = true
 FovFrame.Draggable = true
@@ -558,7 +546,7 @@ FovTitle.TextXAlignment = Enum.TextXAlignment.Left
 
 local FovSlider = Instance.new("Frame", FovFrame)
 FovSlider.BackgroundColor3 = THEME.panel2
-FovSlider.Position = UDim2.new(0, 15, 0, 45)
+FovSlider.Position = UDim2.new(0, 15, 0, 42)
 FovSlider.Size = UDim2.new(1, -30, 0, 10)
 Instance.new("UICorner", FovSlider).CornerRadius = UDim.new(1, 0)
 
@@ -568,22 +556,46 @@ FovFill.Size = UDim2.new(math.clamp(Settings.Aimbot.FOV / 1000, 0, 1), 0, 1, 0)
 Gradient(FovFill, THEME.accent1, THEME.accent2, 0)
 Instance.new("UICorner", FovFill).CornerRadius = UDim.new(1, 0)
 
+local FovMinus = Instance.new("TextButton", FovFrame)
+FovMinus.BackgroundColor3 = THEME.panel2
+FovMinus.Position = UDim2.new(0, 15, 0, 62)
+FovMinus.Size = UDim2.new(0, 40, 0, 30)
+FovMinus.Font = Enum.Font.GothamBold
+FovMinus.Text = "−"
+FovMinus.TextColor3 = THEME.text
+FovMinus.TextSize = 16
+Instance.new("UICorner", FovMinus).CornerRadius = UDim.new(0, 8)
+
+local FovPlus = Instance.new("TextButton", FovFrame)
+FovPlus.BackgroundColor3 = THEME.panel2
+FovPlus.Position = UDim2.new(1, -55, 0, 62)
+FovPlus.Size = UDim2.new(0, 40, 0, 30)
+FovPlus.Font = Enum.Font.GothamBold
+FovPlus.Text = "+"
+FovPlus.TextColor3 = THEME.text
+FovPlus.TextSize = 16
+Instance.new("UICorner", FovPlus).CornerRadius = UDim.new(0, 8)
+
 local FovValueLabel = Instance.new("TextLabel", FovFrame)
 FovValueLabel.BackgroundTransparency = 1
-FovValueLabel.Position = UDim2.new(0, 15, 0, 65)
-FovValueLabel.Size = UDim2.new(1, -30, 0, 20)
+FovValueLabel.Position = UDim2.new(0, 60, 0, 62)
+FovValueLabel.Size = UDim2.new(1, -120, 0, 30)
 FovValueLabel.Font = Enum.Font.GothamSemibold
 FovValueLabel.Text = "Radius: " .. tostring(Settings.Aimbot.FOV)
 FovValueLabel.TextColor3 = THEME.text
-FovValueLabel.TextSize = 11
-FovValueLabel.TextXAlignment = Enum.TextXAlignment.Left
+FovValueLabel.TextSize = 12
+FovValueLabel.TextXAlignment = Enum.TextXAlignment.Center
+
+local function PaintFov()
+    local rel = math.clamp(Settings.Aimbot.FOV / 1000, 0, 1)
+    FovFill.Size = UDim2.new(rel, 0, 1, 0)
+    FovValueLabel.Text = "Radius: " .. tostring(Settings.Aimbot.FOV)
+end
 
 local function SetFovFromPointer(xPos)
     local relX = math.clamp((xPos - FovSlider.AbsolutePosition.X) / FovSlider.AbsoluteSize.X, 0, 1)
-    local newFov = math.floor(relX * 1000)
-    Settings.Aimbot.FOV = newFov
-    FovFill.Size = UDim2.new(relX, 0, 1, 0)
-    FovValueLabel.Text = "Radius: " .. tostring(newFov)
+    Settings.Aimbot.FOV = math.floor(relX * 1000)
+    PaintFov()
 end
 
 local draggingFov = false
@@ -602,6 +614,15 @@ UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         draggingFov = false
     end
+end)
+
+FovMinus.MouseButton1Click:Connect(function()
+    Settings.Aimbot.FOV = math.clamp(Settings.Aimbot.FOV - 25, 0, 1000)
+    PaintFov()
+end)
+FovPlus.MouseButton1Click:Connect(function()
+    Settings.Aimbot.FOV = math.clamp(Settings.Aimbot.FOV + 25, 0, 1000)
+    PaintFov()
 end)
 
 local FovCloseBtn = Instance.new("TextButton", FovFrame)
@@ -633,7 +654,7 @@ WlTitle.BackgroundTransparency = 1
 WlTitle.Position = UDim2.new(0, 10, 0, 10)
 WlTitle.Size = UDim2.new(1, -44, 0, 20)
 WlTitle.Font = Enum.Font.GothamBold
-WlTitle.Text = "🛡️ WHITELIST"
+WlTitle.Text = "🛡️ WHITELIST (0)"
 WlTitle.TextColor3 = THEME.text
 WlTitle.TextSize = 12
 WlTitle.TextXAlignment = Enum.TextXAlignment.Left
@@ -697,6 +718,7 @@ local function RefreshWlUI()
             RefreshWlUI()
         end)
     end
+    WlTitle.Text = "🛡️ WHITELIST (" .. tostring(#Settings.Whitelist) .. ")"
     WlListScroll.CanvasSize = UDim2.new(0, 0, 0, (#Settings.Whitelist * 28) + 4)
 end
 
@@ -779,7 +801,7 @@ AimFloatBtn.MouseButton1Click:Connect(function()
     PaintAimFloat()
 end)
 
--- обычный аим: привязка ПОСЛЕ камерного контроллера = без зависона
+-- обычный аим: ЖЁСТКИЙ лок, свежая камера, после камерного контроллера
 RunService:BindToRenderStep("CociteAimBind", Enum.RenderPriority.Camera.Value + 1, function()
     if Settings.Aimbot.Enabled and AimActive and not Settings.Aimbot.SilentAim then
         local cam = Workspace.CurrentCamera
@@ -787,8 +809,7 @@ RunService:BindToRenderStep("CociteAimBind", Enum.RenderPriority.Camera.Value + 
         if target and IsValidTarget(target) then
             local aimPos = GetTargetAimPosition(target.Character)
             if aimPos then
-                local goal = CFrame.new(cam.CFrame.Position, aimPos)
-                cam.CFrame = cam.CFrame:Lerp(goal, 0.35)
+                cam.CFrame = CFrame.new(cam.CFrame.Position, aimPos)
             end
         else
             Settings.Aimbot.LockedTarget = GetClosestToCenter()
@@ -796,55 +817,103 @@ RunService:BindToRenderStep("CociteAimBind", Enum.RenderPriority.Camera.Value + 
     end
 end)
 
--- // SILENT AIM RAYCAST HOOK (живёт от своего тумблера)
-local SilentHookOK = false
+-- // FOCUS HELPERS (общие для рейкаст и mousepos слоёв)
+local function GetRayFocusPart()
+    if BulletTP.Enabled and TargetedPlayer and TargetedPlayerCharacter then
+        return TargetedPlayerCharacter:FindFirstChild("Head") or TargetedPlayerCharacter:FindFirstChild("HumanoidRootPart")
+    end
+    if Settings.Aimbot.SilentAim then
+        local t = GetClosestToCenter()
+        if t and t.Character then
+            return t.Character:FindFirstChild("Head") or t.Character:FindFirstChild("HumanoidRootPart")
+        end
+    end
+    return nil
+end
+
+local function GetMouseFocusPart()
+    if BulletTP.Enabled and TargetedPlayerAimPart and TargetedPlayerAimPart.Parent then
+        return TargetedPlayerAimPart
+    end
+    if Settings.Aimbot.SilentAim then
+        local t = GetClosestToCenter()
+        if t and t.Character then
+            return t.Character:FindFirstChild(BulletTP.AimPart) or t.Character:FindFirstChild("HumanoidRootPart")
+        end
+    end
+    return nil
+end
+
+-- // RAYCAST HOOK (сайлент + буллет лок)
+local HookOK = false
 pcall(function()
-    local OldNamecall
-    OldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-        local method = getnamecallmethod()
-
-        if not checkcaller() and Settings.Aimbot.SilentAim then
-            if (self == Workspace or self == Camera) and (method == "FindPartOnRayWithIgnoreList" or method == "FindPartOnRay" or method == "Raycast") then
-                local args = table.pack(...)
-                local target = Settings.Aimbot.LockedTarget
-                if not target or not IsValidTarget(target) then
-                    target = GetClosestToCenter()
-                    Settings.Aimbot.LockedTarget = target
-                end
-
-                if target and target.Character then
-                    local aimPart = target.Character:FindFirstChild("Head") or target.Character:FindFirstChild("HumanoidRootPart")
-                    if aimPart then
-                        local origin
-                        local oldRay = args[1]
-
-                        if typeof(oldRay) == "Ray" then
-                            origin = oldRay.Origin
-                        elseif typeof(oldRay) == "Vector3" and method == "Raycast" then
-                            origin = oldRay
+    local Old
+    Old = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+        if not checkcaller() and (self == Workspace or self == Camera) then
+            local m = getnamecallmethod()
+            if m == "Raycast" or m == "FindPartOnRayWithIgnoreList" or m == "FindPartOnRay" then
+                local focus = GetRayFocusPart()
+                if focus then
+                    local args = table.pack(...)
+                    local origin
+                    if typeof(args[1]) == "Ray" then
+                        origin = args[1].Origin
+                    elseif typeof(args[1]) == "Vector3" and m == "Raycast" then
+                        origin = args[1]
+                    end
+                    if origin then
+                        local newDir = (focus.Position - origin).Unit
+                        if m == "Raycast" then
+                            local mag = (typeof(args[2]) == "Vector3" and args[2].Magnitude > 0) and args[2].Magnitude or 1000
+                            args[2] = newDir * mag
+                        else
+                            args[1] = Ray.new(origin, newDir * 1000)
                         end
-
-                        if origin then
-                            local newDir = (aimPart.Position - origin).Unit
-                            if method == "Raycast" then
-                                args[2] = newDir * (typeof(args[2]) == "Vector3" and args[2].Magnitude or 1000)
-                            else
-                                args[1] = Ray.new(origin, newDir * 1000)
-                            end
-                            return OldNamecall(self, table.unpack(args, 1, args.n))
-                        end
+                        RayRedirects = RayRedirects + 1
+                        return Old(self, table.unpack(args, 1, args.n))
                     end
                 end
             end
         end
-
-        return OldNamecall(self, ...)
+        return Old(self, ...)
     end))
-    SilentHookOK = true
+    HookOK = true
+end)
+
+-- // MOUSEPOS HOOK (цепочкой после рейкаст-хука)
+local MouseHookOK = false
+pcall(function()
+    local old
+    old = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+        if not checkcaller() and getnamecallmethod() == "FireServer" then
+            local isRemote = false
+            pcall(function() isRemote = self:IsA("RemoteEvent") end)
+            if isRemote then
+                local Arguments = table.pack(...)
+                local a1 = tostring(Arguments[1]):lower()
+                if a1 == "updatemousepos" or a1 == "mouse" or a1 == "mousepos" or a1 == "updatemouse" then
+                    local focus = GetMouseFocusPart()
+                    if focus then
+                        pcall(function()
+                            Arguments[2] = focus.Position + Vector3.new(
+                                focus.Velocity.X * BulletTP.Prediction.Horizontal,
+                                focus.Velocity.Y * BulletTP.Prediction.Vertical,
+                                0
+                            )
+                        end)
+                        MouseRedirects = MouseRedirects + 1
+                        return old(self, table.unpack(Arguments, 1, Arguments.n))
+                    end
+                end
+            end
+        end
+        return old(self, ...)
+    end))
+    MouseHookOK = true
 end)
 
 -- ============================================================
--- // TP BULLET PORT (reference mechanics 1:1)
+-- // TP BULLET: circle + lock + continuous grip
 -- ============================================================
 local function Notification(Title, Description, Duration)
     pcall(function()
@@ -877,65 +946,6 @@ end
 UserInputService.TouchStarted:Connect(TouchingScreen)
 UserInputService.TouchMoved:Connect(TouchingScreen)
 UserInputService.TouchEnded:Connect(TouchingScreen)
-
-local function GetMyHRP()
-    local char = LocalPlayer.Character
-    return char and char:FindFirstChild("HumanoidRootPart")
-end
-
--- grip-хук: вешается на ЛЮБОЙ тулз, текущий и будущий, проверка enabled внутри
-local function HookToolGrip(tool, character)
-    if not tool or not tool:IsA("Tool") then return end
-    if tool:GetAttribute("CociteGrip") then return end
-    tool:SetAttribute("CociteGrip", true)
-
-    tool.Activated:Connect(function()
-        if not BulletTP.Enabled then return end
-        if not (TargetedPlayer and TargetedPlayerCharacter and TargetedPlayerHumanoidRootPart) then return end
-        local myHRP = GetMyHRP()
-        if not myHRP then return end
-        pcall(function()
-            local old = tool.GripPos
-            local p = myHRP.CFrame:PointToObjectSpace(TargetedPlayerHumanoidRootPart.CFrame.Position)
-            tool.GripPos = Vector3.new(-p.Z, 0, p.X)
-            pcall(function()
-                tool.Parent = LocalPlayer:WaitForChild("Backpack")
-                tool.Parent = character
-            end)
-            task.wait(0.3)
-            if tool.Parent then
-                tool.GripPos = old
-                pcall(function()
-                    tool.Parent = LocalPlayer:WaitForChild("Backpack")
-                    tool.Parent = character
-                end)
-            end
-        end)
-    end)
-end
-
-local function HookAllTools(character)
-    if not character then return end
-    if not character:GetAttribute("CociteGripWatch") then
-        character:SetAttribute("CociteGripWatch", true)
-        character.ChildAdded:Connect(function(c)
-            HookToolGrip(c, character)
-        end)
-    end
-    for _, t in ipairs(character:GetChildren()) do
-        HookToolGrip(t, character)
-    end
-end
-
-pcall(function() HookAllTools(LocalPlayer.Character) end)
-LocalPlayer.CharacterAdded:Connect(function(char)
-    TargetedPlayer = nil
-    TargetedPlayerCharacter = nil
-    TargetedPlayerHumanoidRootPart = nil
-    TargetedPlayerAimPart = nil
-    task.wait(0.3)
-    pcall(function() HookAllTools(char) end)
-end)
 
 local function GetClosestPlayer()
     local ClosestPlayer = nil
@@ -978,6 +988,40 @@ RunService.Heartbeat:Connect(function()
         TargetedPlayerHumanoidRootPart = nil
         TargetedPlayerAimPart = nil
     end
+end)
+
+-- // CONTINUOUS GRIP: дуло вывернуто КАЖДЫЙ кадр, пока есть лок. порядок колбэков не важен
+local savedGrips = {}
+RunService.Heartbeat:Connect(function()
+    local char = LocalPlayer.Character
+    if not char then return end
+    local wantGrip = BulletTP.Enabled and TargetedPlayerHumanoidRootPart ~= nil and TargetedPlayerHumanoidRootPart.Parent ~= nil
+    local myHRP = char:FindFirstChild("HumanoidRootPart")
+    for _, tool in ipairs(char:GetChildren()) do
+        if tool:IsA("Tool") then
+            if wantGrip and myHRP then
+                if savedGrips[tool] == nil then
+                    savedGrips[tool] = tool.GripPos
+                end
+                pcall(function()
+                    local p = myHRP.CFrame:PointToObjectSpace(TargetedPlayerHumanoidRootPart.CFrame.Position)
+                    tool.GripPos = Vector3.new(-p.Z, 0, p.X)
+                    GripFrames = GripFrames + 1
+                end)
+            elseif savedGrips[tool] ~= nil then
+                pcall(function() tool.GripPos = savedGrips[tool] end)
+                savedGrips[tool] = nil
+            end
+        end
+    end
+end)
+
+LocalPlayer.CharacterAdded:Connect(function()
+    savedGrips = {}
+    TargetedPlayer = nil
+    TargetedPlayerCharacter = nil
+    TargetedPlayerHumanoidRootPart = nil
+    TargetedPlayerAimPart = nil
 end)
 
 local function PaintLockBtn()
@@ -1024,56 +1068,8 @@ LockBtn.MouseButton1Click:Connect(function()
         PaintLockBtn()
     else
         Notification("No Target Found", "No Players Found Within FOV Circle.", 3)
-        PaintLockBtn()
     end
 end)
-
--- mousepos hook: цепочкой после сайлента
-local BTPHookOK = false
-
-local function BTPNamecallBody(oldFn, self, ...)
-    if not checkcaller() and BulletTP.Enabled and TargetedPlayer and TargetedPlayerCharacter and TargetedPlayerAimPart and getnamecallmethod() == "FireServer" then
-        local isRemote = false
-        pcall(function() isRemote = self:IsA("RemoteEvent") end)
-        if isRemote then
-            local Arguments = table.pack(...)
-            if Arguments[1] == "UpdateMousePos" or Arguments[1] == "MOUSE" then
-                pcall(function()
-                    Arguments[2] = TargetedPlayerAimPart.Position + Vector3.new(
-                        TargetedPlayerAimPart.Velocity.X * BulletTP.Prediction.Horizontal,
-                        TargetedPlayerAimPart.Velocity.Y * BulletTP.Prediction.Vertical,
-                        0
-                    )
-                end)
-                return oldFn(self, table.unpack(Arguments, 1, Arguments.n))
-            end
-        end
-    end
-    return oldFn(self, ...)
-end
-
-pcall(function()
-    if hookmetamethod and newcclosure then
-        local old
-        old = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-            return BTPNamecallBody(old, self, ...)
-        end))
-        BTPHookOK = true
-    end
-end)
-
-if not BTPHookOK then
-    pcall(function()
-        local RawMetaTable = getrawmetatable(game)
-        local OldNC = RawMetaTable.__namecall
-        setreadonly(RawMetaTable, false)
-        RawMetaTable.__namecall = function(self, ...)
-            return BTPNamecallBody(OldNC, self, ...)
-        end
-        setreadonly(RawMetaTable, true)
-        BTPHookOK = true
-    end)
-end
 
 -- ============================================================
 -- // ESP
@@ -1200,7 +1196,6 @@ CreateToggle(AimbotPage, "Bullet TP (Hit TP)", false, function(state)
     LockBtn.Visible = state
     if state then
         FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-        pcall(function() HookAllTools(LocalPlayer.Character) end)
     else
         ClearTarget(false)
     end
@@ -1211,16 +1206,23 @@ SilentStatusLabel.BackgroundTransparency = 1
 SilentStatusLabel.Size = UDim2.new(1, 0, 0, 16)
 SilentStatusLabel.Font = Enum.Font.GothamSemibold
 SilentStatusLabel.TextSize = 10
-SilentStatusLabel.Text = SilentHookOK and "Silent hook: OK" or "Silent hook: no hook on executor"
-SilentStatusLabel.TextColor3 = SilentHookOK and THEME.ok or THEME.bad
+SilentStatusLabel.Text = (HookOK and "Silent hook: OK" or "Silent hook: FAIL") .. " | " .. (MouseHookOK and "Mouse hook: OK" or "Mouse hook: FAIL")
+SilentStatusLabel.TextColor3 = (HookOK and MouseHookOK) and THEME.ok or THEME.bad
 
-local BTPStatusLabel = Instance.new("TextLabel", AimbotPage)
-BTPStatusLabel.BackgroundTransparency = 1
-BTPStatusLabel.Size = UDim2.new(1, 0, 0, 16)
-BTPStatusLabel.Font = Enum.Font.GothamSemibold
-BTPStatusLabel.TextSize = 10
-BTPStatusLabel.Text = BTPHookOK and "Bullet TP: grip + mousepos OK (v5)" or "Bullet TP: no hook on executor"
-BTPStatusLabel.TextColor3 = BTPHookOK and THEME.ok or THEME.bad
+local DiagLabel = Instance.new("TextLabel", AimbotPage)
+DiagLabel.BackgroundTransparency = 1
+DiagLabel.Size = UDim2.new(1, 0, 0, 16)
+DiagLabel.Font = Enum.Font.GothamSemibold
+DiagLabel.TextSize = 10
+DiagLabel.Text = "diag: rays=0 mouse=0 grip=0"
+DiagLabel.TextColor3 = THEME.muted
+
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        DiagLabel.Text = "diag: rays=" .. tostring(RayRedirects) .. " mouse=" .. tostring(MouseRedirects) .. " grip=" .. tostring(GripFrames)
+    end
+end)
 
 CreateMenuButton(AimbotPage, "⚙️ Adjust FOV Radius", function()
     FovFrame.Visible = not FovFrame.Visible
