@@ -670,7 +670,7 @@ OldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
     return OldNamecall(self, unpack(args))
 end))
 
--- // BULLET TP (Hit TP) - hook MainEvent FireServer + GripPos redirect
+-- // BULLET TP (Hit TP): namecall hook on FireServer + deferred remote search + GripPos redirect
 local function GetBulletTarget()
     return GetClosestToCenter()
 end
@@ -679,35 +679,67 @@ local function GetBulletPart(character)
     return character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")
 end
 
--- Layer 1: MainEvent hook
-local MainEvent = ReplicatedStorage:FindFirstChild("MainEvent")
-local BulletHookOK = false
+local BTP_CANDIDATES = { "MainEvent", "ShootEvent", "MousePos", "UpdateMousePos", "Shoot", "HitEvent", "GunEvent", "WeaponEvent", "MainRemote", "RemoteEvent", "RE" }
+local BTPRemote = nil
 
-if MainEvent then
-    pcall(function()
-        local oldFireServer = MainEvent.FireServer
-        MainEvent.FireServer = newcclosure(function(self, ...)
-            if not checkcaller() and BulletTP.Enabled and self == MainEvent then
-                local args = {...}
-                if args[1] == "UpdateMousePos" or args[1] == "MOUSE" then
-                    local target = GetBulletTarget()
-                    if target and target.Character then
-                        local part = GetBulletPart(target.Character)
-                        if part then
-                            local pred = part.Position + Vector3.new(
-                                part.Velocity.X * BulletTP.Prediction.X,
-                                part.Velocity.Y * BulletTP.Prediction.Y,
-                                part.Velocity.Z * BulletTP.Prediction.Z
-                            )
-                            args[2] = pred
-                            return oldFireServer(self, unpack(args))
-                        end
-                    end
+local function BTPFindRemote()
+    for _, name in ipairs(BTP_CANDIDATES) do
+        local r = ReplicatedStorage:FindFirstChild(name)
+        if r and r:IsA("RemoteEvent") then return r end
+    end
+    for _, d in ipairs(ReplicatedStorage:GetDescendants()) do
+        if d:IsA("RemoteEvent") then
+            for _, name in ipairs(BTP_CANDIDATES) do
+                if d.Name == name then return d end
+            end
+        end
+    end
+    return nil
+end
+
+local function BTPNamecallBody(oldFn, self, ...)
+    if not checkcaller() and BulletTP.Enabled and BTPRemote and self == BTPRemote and getnamecallmethod() == "FireServer" then
+        local args = table.pack(...)
+        if args[1] == "UpdateMousePos" or args[1] == "MOUSE" then
+            local target = GetBulletTarget()
+            if target and target.Character then
+                local part = GetBulletPart(target.Character)
+                if part then
+                    args[2] = part.Position + Vector3.new(
+                        part.Velocity.X * BulletTP.Prediction.X,
+                        part.Velocity.Y * BulletTP.Prediction.Y,
+                        part.Velocity.Z * BulletTP.Prediction.Z
+                    )
+                    return oldFn(self, table.unpack(args, 1, args.n))
                 end
             end
-            return oldFireServer(self, ...)
-        end)
-        BulletHookOK = true
+        end
+    end
+    return oldFn(self, ...)
+end
+
+local BTPHookOK = false
+
+pcall(function()
+    if hookmetamethod and newcclosure then
+        local old
+        old = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+            return BTPNamecallBody(old, self, ...)
+        end))
+        BTPHookOK = true
+    end
+end)
+
+if not BTPHookOK then
+    pcall(function()
+        local mt = getrawmetatable(game)
+        local old = mt.__namecall
+        setreadonly(mt, false)
+        mt.__namecall = function(self, ...)
+            return BTPNamecallBody(old, self, ...)
+        end
+        setreadonly(mt, true)
+        BTPHookOK = true
     end)
 end
 
@@ -872,8 +904,8 @@ BTPStatusLabel.BackgroundTransparency = 1
 BTPStatusLabel.Size = UDim2.new(1, 0, 0, 16)
 BTPStatusLabel.Font = Enum.Font.GothamSemibold
 BTPStatusLabel.TextSize = 10
-BTPStatusLabel.Text = BulletHookOK and "Bullet TP: HOOKED" or "Bullet TP: MainEvent NOT FOUND"
-BTPStatusLabel.TextColor3 = BulletHookOK and Color3.fromRGB(80, 255, 140) or Color3.fromRGB(255, 70, 90)
+BTPStatusLabel.Text = "Bullet TP: searching remote..."
+BTPStatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
 
 -- // UI BUTTONS FOR FOV AND WHITELIST IN MENU
 local FovGearBtn = Instance.new("TextButton", AimbotPage)
@@ -925,4 +957,26 @@ end)
 
 CreateToggle(ESPPage, "Name ESP", true, function(state)
     Settings.ESP.Names = state
+end)
+
+-- // BULLET TP WAITER: находит ремут как только он доехал до клиента, обновляет статус
+task.spawn(function()
+    local tries = 0
+    while not BTPRemote and tries < 120 do
+        BTPRemote = BTPFindRemote()
+        if not BTPRemote then
+            task.wait(1)
+        end
+        tries = tries + 1
+    end
+    if BTPHookOK and BTPRemote then
+        BTPStatusLabel.Text = "Bullet TP: HOOKED (" .. BTPRemote.Name .. ")"
+        BTPStatusLabel.TextColor3 = Color3.fromRGB(80, 255, 140)
+    elseif not BTPHookOK then
+        BTPStatusLabel.Text = "Bullet TP: no hook on this executor"
+        BTPStatusLabel.TextColor3 = Color3.fromRGB(255, 70, 90)
+    else
+        BTPStatusLabel.Text = "Bullet TP: remote NOT FOUND"
+        BTPStatusLabel.TextColor3 = Color3.fromRGB(255, 70, 90)
+    end
 end)
