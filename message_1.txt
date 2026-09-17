@@ -1,4 +1,4 @@
--- COCITESCRIPT | Da Hood & Flame Hood Edition (v6: hard lock + live grip + dual-layer silent)
+-- COCITESCRIPT | Da Hood & Flame Hood Edition (v7: no checkcaller gate + screen-ray layer + remote logger)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -9,10 +9,10 @@ local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
-if _G.CociteVer == 6 then
+if _G.CociteVer == 7 then
     return
 end
-_G.CociteVer = 6
+_G.CociteVer = 7
 _G.CociteRunning = true
 
 pcall(function()
@@ -83,7 +83,9 @@ local TargetedPlayerAimPart = nil
 
 local RayRedirects = 0
 local MouseRedirects = 0
+local ScreenRayRedirects = 0
 local GripFrames = 0
+local FireServerLog = {}
 
 local function IsWhitelisted(player)
     for _, name in ipairs(Settings.Whitelist) do
@@ -287,7 +289,7 @@ VerPill.BackgroundTransparency = 0.65
 VerPill.Position = UDim2.new(1, -64, 0.5, -10)
 VerPill.Size = UDim2.new(0, 26, 0, 20)
 VerPill.Font = Enum.Font.GothamBold
-VerPill.Text = "v6"
+VerPill.Text = "v7"
 VerPill.TextColor3 = Color3.fromRGB(255, 255, 255)
 VerPill.TextSize = 10
 Instance.new("UICorner", VerPill).CornerRadius = UDim.new(0, 6)
@@ -378,7 +380,6 @@ Tabs["AIMBOT"].Visible = true
 TabButtons["AIMBOT"].TextColor3 = Color3.fromRGB(255, 255, 255)
 Gradient(TabButtons["AIMBOT"], THEME.accent1, THEME.accent2, 0)
 
--- // TOGGLE v2 (label не режется нобом)
 local function CreateToggle(parent, text, defaultState, callback)
     local btn = Instance.new("TextButton", parent)
     btn.Size = UDim2.new(1, 0, 0, 40)
@@ -521,7 +522,7 @@ local lkStroke = Instance.new("UIStroke", LockBtn)
 lkStroke.Color = THEME.stroke
 lkStroke.Thickness = 1.5
 
--- // FOV FRAME (+ слайдер + кнопки - / +)
+-- // FOV FRAME
 local FovFrame = Instance.new("Frame", ScreenGui)
 FovFrame.BackgroundColor3 = THEME.bg
 FovFrame.Position = UDim2.new(0.5, -120, 0.5, -80)
@@ -801,7 +802,6 @@ AimFloatBtn.MouseButton1Click:Connect(function()
     PaintAimFloat()
 end)
 
--- обычный аим: ЖЁСТКИЙ лок, свежая камера, после камерного контроллера
 RunService:BindToRenderStep("CociteAimBind", Enum.RenderPriority.Camera.Value + 1, function()
     if Settings.Aimbot.Enabled and AimActive and not Settings.Aimbot.SilentAim then
         local cam = Workspace.CurrentCamera
@@ -817,7 +817,7 @@ RunService:BindToRenderStep("CociteAimBind", Enum.RenderPriority.Camera.Value + 
     end
 end)
 
--- // FOCUS HELPERS (общие для рейкаст и mousepos слоёв)
+-- // FOCUS HELPERS
 local function GetRayFocusPart()
     if BulletTP.Enabled and TargetedPlayer and TargetedPlayerCharacter then
         return TargetedPlayerCharacter:FindFirstChild("Head") or TargetedPlayerCharacter:FindFirstChild("HumanoidRootPart")
@@ -844,14 +844,14 @@ local function GetMouseFocusPart()
     return nil
 end
 
--- // RAYCAST HOOK (сайлент + буллет лок)
+-- // RAYCAST + SCREEN-RAY HOOK (без checkcaller: рекурсии в хуке нет по построению)
 local HookOK = false
 pcall(function()
     local Old
     Old = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-        if not checkcaller() and (self == Workspace or self == Camera) then
+        if (self == Workspace or self == Camera) then
             local m = getnamecallmethod()
-            if m == "Raycast" or m == "FindPartOnRayWithIgnoreList" or m == "FindPartOnRay" then
+            if m == "Raycast" or m == "FindPartOnRayWithIgnoreList" or m == "FindPartOnRay" or m == "FindPartOnRayWithWhitelist" then
                 local focus = GetRayFocusPart()
                 if focus then
                     local args = table.pack(...)
@@ -873,6 +873,13 @@ pcall(function()
                         return Old(self, table.unpack(args, 1, args.n))
                     end
                 end
+            elseif m == "ViewportPointToRay" or m == "ScreenPointToRay" then
+                local focus = GetRayFocusPart()
+                if focus then
+                    local camPos = Workspace.CurrentCamera.CFrame.Position
+                    ScreenRayRedirects = ScreenRayRedirects + 1
+                    return Ray.new(camPos, (focus.Position - camPos).Unit * 1000)
+                end
             end
         end
         return Old(self, ...)
@@ -880,16 +887,18 @@ pcall(function()
     HookOK = true
 end)
 
--- // MOUSEPOS HOOK (цепочкой после рейкаст-хука)
+-- // MOUSEPOS HOOK + FIRESERVER LOGGER (без checkcaller)
 local MouseHookOK = false
 pcall(function()
     local old
     old = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-        if not checkcaller() and getnamecallmethod() == "FireServer" then
+        if getnamecallmethod() == "FireServer" then
             local isRemote = false
             pcall(function() isRemote = self:IsA("RemoteEvent") end)
             if isRemote then
                 local Arguments = table.pack(...)
+                local key = self.Name .. ":" .. tostring(Arguments[1])
+                FireServerLog[key] = (FireServerLog[key] or 0) + 1
                 local a1 = tostring(Arguments[1]):lower()
                 if a1 == "updatemousepos" or a1 == "mouse" or a1 == "mousepos" or a1 == "updatemouse" then
                     local focus = GetMouseFocusPart()
@@ -990,7 +999,6 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- // CONTINUOUS GRIP: дуло вывернуто КАЖДЫЙ кадр, пока есть лок. порядок колбэков не важен
 local savedGrips = {}
 RunService.Heartbeat:Connect(function()
     local char = LocalPlayer.Character
@@ -1211,16 +1219,23 @@ SilentStatusLabel.TextColor3 = (HookOK and MouseHookOK) and THEME.ok or THEME.ba
 
 local DiagLabel = Instance.new("TextLabel", AimbotPage)
 DiagLabel.BackgroundTransparency = 1
-DiagLabel.Size = UDim2.new(1, 0, 0, 16)
+DiagLabel.Size = UDim2.new(1, 0, 0, 30)
 DiagLabel.Font = Enum.Font.GothamSemibold
 DiagLabel.TextSize = 10
-DiagLabel.Text = "diag: rays=0 mouse=0 grip=0"
+DiagLabel.TextWrapped = true
+DiagLabel.Text = "diag: rays=0 mouse=0 sray=0 grip=0"
 DiagLabel.TextColor3 = THEME.muted
 
 task.spawn(function()
     while true do
         task.wait(0.5)
-        DiagLabel.Text = "diag: rays=" .. tostring(RayRedirects) .. " mouse=" .. tostring(MouseRedirects) .. " grip=" .. tostring(GripFrames)
+        local topKey, topCount = "-", 0
+        for k, v in pairs(FireServerLog) do
+            if v > topCount then
+                topKey, topCount = k, v
+            end
+        end
+        DiagLabel.Text = "diag: rays=" .. tostring(RayRedirects) .. " mouse=" .. tostring(MouseRedirects) .. " sray=" .. tostring(ScreenRayRedirects) .. " grip=" .. tostring(GripFrames) .. "\nfs top: " .. topKey .. " x" .. tostring(topCount)
     end
 end)
 
