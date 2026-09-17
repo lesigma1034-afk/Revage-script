@@ -7,6 +7,7 @@ _G.CociteRunning = true
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
@@ -29,6 +30,7 @@ local Settings = {
         Prediction = 0.135,
         UsePrediction = true,
         WallCheck = false,
+        TPBullet = false,
     },
     Whitelist = {
         Players = {},
@@ -691,7 +693,7 @@ local function RedirectRay(origin, direction, targetPart)
     return (targetPos - origin).Unit * mag
 end
 
--- Silent Aim Engine Hooks
+-- Silent Aim Engine Hooks (Zero Camera Freezing / 100% Smooth)
 pcall(function()
     if hookmetamethod and getnamecallmethod and newcclosure and checkcaller then
         local oldNamecall
@@ -705,7 +707,12 @@ pcall(function()
                     if method == "Raycast" and typeof(args[2]) == "Vector3" and typeof(args[3]) == "Vector3" then
                         local _, targetPart = GetSilentAimTarget()
                         if targetPart then
-                            args[3] = RedirectRay(args[2], args[3], targetPart)
+                            if Settings.SilentAim.TPBullet then
+                                args[2] = targetPart.Position + Vector3.new(0, 0.5, 0)
+                                args[3] = Vector3.new(0, -1, 0)
+                            else
+                                args[3] = RedirectRay(args[2], args[3], targetPart)
+                            end
                             return oldNamecall(table.unpack(args))
                         end
                     elseif method == "FindPartOnRay" or method == "FindPartOnRayWithIgnoreList" or method == "FindPartOnRayWithWhitelist" then
@@ -713,8 +720,12 @@ pcall(function()
                         if typeof(ray) == "Ray" then
                             local _, targetPart = GetSilentAimTarget()
                             if targetPart then
-                                local newDir = RedirectRay(ray.Origin, ray.Direction, targetPart)
-                                args[2] = Ray.new(ray.Origin, newDir)
+                                if Settings.SilentAim.TPBullet then
+                                    args[2] = Ray.new(targetPart.Position + Vector3.new(0, 0.5, 0), Vector3.new(0, -1, 0))
+                                else
+                                    local newDir = RedirectRay(ray.Origin, ray.Direction, targetPart)
+                                    args[2] = Ray.new(ray.Origin, newDir)
+                                end
                                 return oldNamecall(table.unpack(args))
                             end
                         end
@@ -742,7 +753,12 @@ pcall(function()
             if not checkcaller() and Settings.SilentAim.Enabled and typeof(origin) == "Vector3" and typeof(direction) == "Vector3" then
                 local _, targetPart = GetSilentAimTarget()
                 if targetPart then
-                    direction = RedirectRay(origin, direction, targetPart)
+                    if Settings.SilentAim.TPBullet then
+                        origin = targetPart.Position + Vector3.new(0, 0.5, 0)
+                        direction = Vector3.new(0, -1, 0)
+                    else
+                        direction = RedirectRay(origin, direction, targetPart)
+                    end
                 end
             end
             return oldRaycast(self, origin, direction, ...)
@@ -982,6 +998,10 @@ end)
 
 CreateToggle(AimbotPage, "Show Silent FOV", Settings.SilentAim.ShowFOV, function(state)
     Settings.SilentAim.ShowFOV = state
+end)
+
+CreateToggle(AimbotPage, "TP Bullet (Instant Hit)", Settings.SilentAim.TPBullet, function(state)
+    Settings.SilentAim.TPBullet = state
 end)
 
 -- Populate ESP Page Controls
