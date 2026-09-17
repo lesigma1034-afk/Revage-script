@@ -80,6 +80,11 @@ local Settings = {
         Names = true,
         ActiveDrawings = {},
         ActiveHighlights = {}
+    },
+    Misc = {
+        Fly = false,
+        FlySpeed = 50,
+        VClipDistance = 10,
     }
 }
 
@@ -333,7 +338,7 @@ local MainFrame = Instance.new("Frame", ScreenGui)
 MainFrame.Name = "MainFrame"
 MainFrame.BackgroundColor3 = Color3.fromRGB(12, 10, 20)
 MainFrame.Position = UDim2.new(0.5, -215, 0.5, -170)
-MainFrame.Size = UDim2.new(0, 430, 0, 340)
+MainFrame.Size = UDim2.new(0, 440, 0, 350)
 MainFrame.Visible = false
 MainFrame.Active = true
 MainFrame.Draggable = true
@@ -402,7 +407,7 @@ local TabButtons = {}
 local function CreateTab(tabName)
     local tabBtn = Instance.new("TextButton", TabBar)
     tabBtn.BackgroundColor3 = Color3.fromRGB(26, 20, 40)
-    tabBtn.Size = UDim2.new(0, 128, 0, 26)
+    tabBtn.Size = UDim2.new(0, 88, 0, 26)
     tabBtn.Font = Enum.Font.GothamBold
     tabBtn.Text = tabName
     tabBtn.TextColor3 = Color3.fromRGB(150, 140, 170)
@@ -499,6 +504,27 @@ local function CreateToggle(parent, text, defaultState, callback)
             callback(active)
         end
     }
+end
+
+local function CreateButton(parent, label, callback)
+    local btn = Instance.new("TextButton", parent)
+    btn.BackgroundColor3 = Color3.fromRGB(22, 16, 36)
+    btn.Size = UDim2.new(1, 0, 0, 34)
+    btn.Font = Enum.Font.GothamBold
+    btn.Text = label
+    btn.TextColor3 = Color3.fromRGB(220, 190, 255)
+    btn.TextSize = 11
+
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+    local stroke = Instance.new("UIStroke", btn)
+    stroke.Color = Color3.fromRGB(110, 40, 190)
+    stroke.Thickness = 1.2
+
+    btn.MouseButton1Click:Connect(function()
+        callback()
+    end)
+
+    return btn
 end
 
 local function CreateCycle(parent, label, options, defaultIndex, callback)
@@ -646,6 +672,7 @@ end
 local AimbotPage = CreateTab("AIMBOT")
 local ESPPage = CreateTab("ESP")
 local WhitelistPage = CreateTab("WHITELIST")
+local MiscPage = CreateTab("MISC")
 
 Tabs["AIMBOT"].Visible = true
 TabButtons["AIMBOT"].BackgroundColor3 = Color3.fromRGB(110, 25, 200)
@@ -691,8 +718,158 @@ local silentFloatStroke = Instance.new("UIStroke", SilentFloatBtn)
 silentFloatStroke.Color = Settings.SilentAim.Enabled and Color3.fromRGB(0, 220, 255) or Color3.fromRGB(40, 90, 130)
 silentFloatStroke.Thickness = 1.5
 
+-- Float Button 3: Fly
+local FlyFloatBtn = Instance.new("TextButton", ScreenGui)
+FlyFloatBtn.Name = "CociteFlyFloatBtn"
+FlyFloatBtn.BackgroundColor3 = Color3.fromRGB(24, 18, 22)
+FlyFloatBtn.Position = UDim2.new(0.82, 0, 0.52, 0)
+FlyFloatBtn.Size = UDim2.new(0, 105, 0, 42)
+FlyFloatBtn.Font = Enum.Font.GothamBold
+FlyFloatBtn.Text = "🚀 FLY: OFF"
+FlyFloatBtn.TextColor3 = Color3.fromRGB(240, 180, 160)
+FlyFloatBtn.TextSize = 12
+FlyFloatBtn.Visible = false
+FlyFloatBtn.Active = true
+FlyFloatBtn.Draggable = true
+Instance.new("UICorner", FlyFloatBtn).CornerRadius = UDim.new(0, 10)
+local flyFloatStroke = Instance.new("UIStroke", FlyFloatBtn)
+flyFloatStroke.Color = Color3.fromRGB(160, 60, 40)
+flyFloatStroke.Thickness = 1.5
+
 local updatingFromFloat = false
 local silentToggleObj = nil
+local flyConnection = nil
+local flyToggleObj = nil
+
+local currentFlyCFrame = nil
+
+local function DoVClip(distance)
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not hrp or not hum or hum.Health <= 0 then return end
+
+    hrp.CFrame = hrp.CFrame + Vector3.new(0, distance, 0)
+    hrp.AssemblyLinearVelocity = Vector3.zero
+    if currentFlyCFrame then
+        currentFlyCFrame = currentFlyCFrame + Vector3.new(0, distance, 0)
+    end
+end
+
+local function UpdateFlyState(state, fromUI)
+    Settings.Misc.Fly = state
+    if FlyFloatBtn then
+        if state then
+            FlyFloatBtn.BackgroundColor3 = Color3.fromRGB(200, 60, 30)
+            FlyFloatBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            FlyFloatBtn.Text = "🚀 FLY: ON"
+            flyFloatStroke.Color = Color3.fromRGB(255, 120, 60)
+        else
+            FlyFloatBtn.BackgroundColor3 = Color3.fromRGB(24, 18, 22)
+            FlyFloatBtn.TextColor3 = Color3.fromRGB(240, 180, 160)
+            FlyFloatBtn.Text = "🚀 FLY: OFF"
+            flyFloatStroke.Color = Color3.fromRGB(160, 60, 40)
+        end
+    end
+    if not fromUI and flyToggleObj and flyToggleObj.Set then
+        flyToggleObj:Set(state)
+    end
+
+    if state then
+        if flyConnection then return end
+        local startChar = LocalPlayer.Character
+        local startHrp = startChar and startChar:FindFirstChild("HumanoidRootPart")
+        if startHrp then
+            currentFlyCFrame = startHrp.CFrame
+        end
+
+        flyConnection = RunService.Heartbeat:Connect(function(dt)
+            if not Settings.Misc.Fly then
+                if flyConnection then
+                    flyConnection:Disconnect()
+                    flyConnection = nil
+                end
+                return
+            end
+
+            local char = LocalPlayer.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if not hrp or not hum or hum.Health <= 0 then return end
+
+            local cam = workspace.CurrentCamera or Camera
+            local camCF = cam and cam.CFrame
+            if not camCF then return end
+
+            if not currentFlyCFrame then
+                currentFlyCFrame = hrp.CFrame
+            end
+
+            -- Noclip through walls, ceilings & floors while VClip-Flying
+            for _, part in ipairs(char:GetChildren()) do
+                if part:IsA("BasePart") and part.CanCollide then
+                    part.CanCollide = false
+                end
+            end
+
+            hrp.AssemblyLinearVelocity = Vector3.zero
+
+            local moveVector = Vector3.zero
+
+            -- PC Inputs
+            if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+                moveVector = moveVector + camCF.LookVector
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+                moveVector = moveVector - camCF.LookVector
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+                moveVector = moveVector - camCF.RightVector
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+                moveVector = moveVector + camCF.RightVector
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+                moveVector = moveVector + Vector3.new(0, 1, 0)
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+                moveVector = moveVector - Vector3.new(0, 1, 0)
+            end
+
+            -- Mobile Support (Joystick MoveDirection + Camera vertical tilt)
+            if moveVector.Magnitude == 0 and hum.MoveDirection.Magnitude > 0 then
+                local moveDir = hum.MoveDirection
+                moveVector = moveVector + Vector3.new(moveDir.X, camCF.LookVector.Y * moveDir.Magnitude, moveDir.Z)
+            end
+
+            if moveVector.Magnitude > 0 then
+                moveVector = moveVector.Unit
+                local speed = Settings.Misc.FlySpeed or 50
+                local deltaTime = dt or 0.016
+                currentFlyCFrame = currentFlyCFrame + (moveVector * (speed * deltaTime))
+            end
+
+            hrp.CFrame = CFrame.new(currentFlyCFrame.Position) * camCF.Rotation
+            hrp.AssemblyLinearVelocity = Vector3.zero
+        end)
+        table.insert(_G.CociteConnections, flyConnection)
+    else
+        if flyConnection then
+            flyConnection:Disconnect()
+            flyConnection = nil
+        end
+        currentFlyCFrame = nil
+        local char = LocalPlayer.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.AssemblyLinearVelocity = Vector3.zero
+        end
+    end
+end
+
+FlyFloatBtn.MouseButton1Click:Connect(function()
+    UpdateFlyState(not Settings.Misc.Fly, false)
+end)
 
 local function UpdateAimState(state, fromUI)
     Settings.Aimbot.Enabled = state
@@ -721,11 +898,17 @@ AimFloatBtn.MouseButton1Click:Connect(function()
     UpdateAimState(not AimActive, false)
 end)
 
--- PC Keybind (Q key): Instant toggle for CamLock
+-- PC Keybinds: Q for CamLock, X for Fly, B for VClip Up, V for VClip Down
 table.insert(_G.CociteConnections, UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if input.KeyCode == Enum.KeyCode.Q then
         UpdateAimState(not AimActive, false)
+    elseif input.KeyCode == Enum.KeyCode.X then
+        UpdateFlyState(not Settings.Misc.Fly, false)
+    elseif input.KeyCode == Enum.KeyCode.B then
+        DoVClip(Settings.Misc.VClipDistance)
+    elseif input.KeyCode == Enum.KeyCode.V then
+        DoVClip(-Settings.Misc.VClipDistance)
     end
 end))
 
@@ -770,12 +953,14 @@ LoginBtn.MouseButton1Click:Connect(function()
         ToggleButton.Visible = true
         AimFloatBtn.Visible = true
         SilentFloatBtn.Visible = true
+        FlyFloatBtn.Visible = true
         MainFrame.Visible = true
         TweenService:Create(MainFrame, TweenInfo.new(0.5), {BackgroundTransparency = 0}):Play()
         TweenService:Create(MainStroke, TweenInfo.new(0.5), {Transparency = 0}):Play()
 
         UpdateAimState(Settings.Aimbot.Enabled, true)
         UpdateSilentAimState(Settings.SilentAim.Enabled, true)
+        UpdateFlyState(Settings.Misc.Fly, true)
     else
         StatusLabel.Text = "Статус: ❌ Неверный ключ!"
         StatusLabel.TextColor3 = Color3.fromRGB(255, 70, 90)
@@ -1504,6 +1689,7 @@ listLayout.SortOrder = Enum.SortOrder.LayoutOrder
 listLayout.Padding = UDim.new(0, 4)
 
 local function UpdateWhitelistUI()
+
     for _, child in ipairs(listContainer:GetChildren()) do
         if child:IsA("Frame") or child:IsA("TextLabel") or child:IsA("TextButton") then
             child:Destroy()
@@ -1595,3 +1781,60 @@ clearAllBtn.MouseButton1Click:Connect(function()
 end)
 
 UpdateWhitelistUI()
+
+-- Populate MISC Page Controls
+CreateSection(MiscPage, "FLY (FLIGHT SYSTEM)")
+
+flyToggleObj = CreateToggle(MiscPage, "Fly Master", Settings.Misc.Fly, function(state)
+    UpdateFlyState(state, true)
+end)
+
+CreateSlider(MiscPage, "Fly Speed", 10, 200, Settings.Misc.FlySpeed, " studs/s", 5, function(val)
+    Settings.Misc.FlySpeed = val
+end)
+
+CreateSection(MiscPage, "VCLIP (VERTICAL TELEPORT)")
+
+CreateSlider(MiscPage, "VClip Distance", 1, 50, Settings.Misc.VClipDistance, " st", 1, function(val)
+    Settings.Misc.VClipDistance = val
+end)
+
+CreateButton(MiscPage, "▲ VClip Up (Clip Above / Roof)", function()
+    DoVClip(Settings.Misc.VClipDistance)
+end)
+
+CreateButton(MiscPage, "▼ VClip Down (Clip Below / Floor)", function()
+    DoVClip(-Settings.Misc.VClipDistance)
+end)
+
+CreateSection(MiscPage, "HOTKEYS (PC)")
+local helpFrame = Instance.new("Frame", MiscPage)
+helpFrame.BackgroundColor3 = Color3.fromRGB(20, 15, 32)
+helpFrame.Size = UDim2.new(1, 0, 0, 84)
+Instance.new("UICorner", helpFrame).CornerRadius = UDim.new(0, 8)
+local hfStroke = Instance.new("UIStroke", helpFrame)
+hfStroke.Color = Color3.fromRGB(90, 40, 160)
+hfStroke.Thickness = 1.2
+
+local hfLayout = Instance.new("UIListLayout", helpFrame)
+hfLayout.SortOrder = Enum.SortOrder.LayoutOrder
+hfLayout.Padding = UDim.new(0, 2)
+local hfPad = Instance.new("UIPadding", helpFrame)
+hfPad.PaddingLeft = UDim.new(0, 10)
+hfPad.PaddingTop = UDim.new(0, 6)
+
+local function AddKeyHelp(txt)
+    local lbl = Instance.new("TextLabel", helpFrame)
+    lbl.BackgroundTransparency = 1
+    lbl.Size = UDim2.new(1, -20, 0, 16)
+    lbl.Font = Enum.Font.GothamSemibold
+    lbl.Text = txt
+    lbl.TextColor3 = Color3.fromRGB(200, 180, 230)
+    lbl.TextSize = 11
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+end
+
+AddKeyHelp("• [X] - Toggle Fly On / Off")
+AddKeyHelp("• [B] - VClip Up (through ceiling)")
+AddKeyHelp("• [V] - VClip Down (through floor)")
+AddKeyHelp("• [Q] - Toggle Regular Aimbot (CamLock)")
