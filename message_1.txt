@@ -1,4 +1,4 @@
--- COCITESCRIPT | Da Hood & Flame Hood Edition (v7: fixed silent + bullet TP)
+-- // COCITESCRIPT | Da Hood & Flame Hood Edition (v8: fixed raycast silent aim + mobile UX)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -9,10 +9,10 @@ local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
-if _G.CociteVer == 7 then
+if _G.CociteVer == 8 then
     return
 end
-_G.CociteVer = 7
+_G.CociteVer = 8
 _G.CociteRunning = true
 
 pcall(function()
@@ -287,7 +287,7 @@ VerPill.BackgroundTransparency = 0.65
 VerPill.Position = UDim2.new(1, -64, 0.5, -10)
 VerPill.Size = UDim2.new(0, 26, 0, 20)
 VerPill.Font = Enum.Font.GothamBold
-VerPill.Text = "v7"
+VerPill.Text = "v8"
 VerPill.TextColor3 = Color3.fromRGB(255, 255, 255)
 VerPill.TextSize = 10
 Instance.new("UICorner", VerPill).CornerRadius = UDim.new(0, 6)
@@ -485,10 +485,10 @@ LoginBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- // FLOAT BUTTONS
+-- // FLOAT BUTTONS (Moved positions to prevent overlapping mobile elements)
 local AimFloatBtn = Instance.new("TextButton", ScreenGui)
 AimFloatBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-AimFloatBtn.Position = UDim2.new(0.8, 0, 0.4, 0)
+AimFloatBtn.Position = UDim2.new(0.75, 0, 0.25, 0)
 AimFloatBtn.Size = UDim2.new(0, 100, 0, 46)
 AimFloatBtn.Font = Enum.Font.GothamBold
 AimFloatBtn.Text = "🎯 AIM: OFF"
@@ -506,7 +506,7 @@ afStroke.Thickness = 1.5
 local LockBtn = Instance.new("TextButton", ScreenGui)
 LockBtn.Name = "CociteLockBtn"
 LockBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-LockBtn.Position = UDim2.new(0.8, 0, 0.55, 0)
+LockBtn.Position = UDim2.new(0.75, 0, 0.40, 0)
 LockBtn.Size = UDim2.new(0, 120, 0, 46)
 LockBtn.Font = Enum.Font.GothamBold
 LockBtn.Text = "🔒 LOCK: NONE"
@@ -851,24 +851,24 @@ local function GetMouseFocusPart()
     return nil
 end
 
--- // RAYCAST HOOK
+-- // RAYCAST HOOK (Fixed argument patterns to prevent crashes)
 local HookOK = false
 pcall(function()
     local Old
     Old = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-        if not checkcaller() and (self == Workspace or self == Camera) and HasToolEquipped() then
+        if not checkcaller() and HasToolEquipped() then
             local m = getnamecallmethod()
             if m == "Raycast" or m == "FindPartOnRayWithIgnoreList" or m == "FindPartOnRay" or m == "FindPartOnRayWithWhitelist" then
                 local focus = GetRayFocusPart()
                 if focus then
                     local args = table.pack(...)
                     local origin
-                    if typeof(args[1]) == "Ray" then
-                        origin = args[1].Origin
-                    elseif typeof(args[1]) == "Vector3" and m == "Raycast" then
+                    if m == "Raycast" then
                         origin = args[1]
+                    elseif typeof(args[1]) == "Ray" then
+                        origin = args[1].Origin
                     end
-                    if origin then
+                    if typeof(origin) == "Vector3" then
                         local newDir = (focus.Position - origin).Unit
                         if m == "Raycast" then
                             local mag = (typeof(args[2]) == "Vector3" and args[2].Magnitude > 0) and args[2].Magnitude or 1000
