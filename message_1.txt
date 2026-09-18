@@ -66,7 +66,11 @@ local Settings = {
         Prediction = 0.135,
         UsePrediction = true,
         WallCheck = false,
-        TPBullet = false,
+        StickyTarget = true,
+    },
+    NoSpread = {
+        Enabled = true,
+        Amount = 0,
     },
     Whitelist = {
         Players = {},
@@ -679,7 +683,6 @@ TabButtons["AIMBOT"].BackgroundColor3 = Color3.fromRGB(110, 25, 200)
 TabButtons["AIMBOT"].TextColor3 = Color3.fromRGB(255, 255, 255)
 
 local AimActive = false
-local updatingAimFromFloat = false
 local aimbotToggleObj = nil
 
 -- Float Button 1: Regular Aimbot (CamLock)
@@ -871,8 +874,7 @@ FlyFloatBtn.MouseButton1Click:Connect(function()
     UpdateFlyState(not Settings.Misc.Fly, false)
 end)
 
-local function UpdateAimState(state, fromUI)
-    Settings.Aimbot.Enabled = state
+local function UpdateAimState(state)
     AimActive = state
     if state then
         Settings.Aimbot.LockedTarget = GetClosestPlayerForAim()
@@ -887,22 +889,19 @@ local function UpdateAimState(state, fromUI)
         AimFloatBtn.Text = "🎯 AIM: OFF"
         aimFloatStroke.Color = Color3.fromRGB(120, 40, 200)
     end
-    if not fromUI and aimbotToggleObj and aimbotToggleObj.Set then
-        updatingAimFromFloat = true
-        aimbotToggleObj:Set(state)
-        updatingAimFromFloat = false
-    end
 end
 
 AimFloatBtn.MouseButton1Click:Connect(function()
-    UpdateAimState(not AimActive, false)
+    UpdateAimState(not AimActive)
 end)
 
 -- PC Keybinds: Q for CamLock, X for Fly, B for VClip Up, V for VClip Down
 table.insert(_G.CociteConnections, UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if input.KeyCode == Enum.KeyCode.Q then
-        UpdateAimState(not AimActive, false)
+        if Settings.Aimbot.Enabled then
+            UpdateAimState(not AimActive)
+        end
     elseif input.KeyCode == Enum.KeyCode.X then
         UpdateFlyState(not Settings.Misc.Fly, false)
     elseif input.KeyCode == Enum.KeyCode.B then
@@ -958,7 +957,7 @@ LoginBtn.MouseButton1Click:Connect(function()
         TweenService:Create(MainFrame, TweenInfo.new(0.5), {BackgroundTransparency = 0}):Play()
         TweenService:Create(MainStroke, TweenInfo.new(0.5), {Transparency = 0}):Play()
 
-        UpdateAimState(Settings.Aimbot.Enabled, true)
+        UpdateAimState(false)
         UpdateSilentAimState(Settings.SilentAim.Enabled, true)
         UpdateFlyState(Settings.Misc.Fly, true)
     else
@@ -997,116 +996,14 @@ local currentSilentTarget = nil
 local currentSilentTargetPart = nil
 local currentSilentAimPos = nil
 
--- Equipped Tool Tracking for Shotgun Spread Detection & Desync TP Bullet
+-- Equipped Tool Tracking for Shotgun Spread Detection
 local equippedToolName = nil
-local CameraProxy = nil
-local isTPBulletActive = false
-
-local function PerformDesyncTP(targetPart)
-    if isTPBulletActive or not targetPart then return end
-    local char = LocalPlayer.Character
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if not hrp or not hum or hum.Health <= 0 then return end
-
-    isTPBulletActive = true
-    local originalCF = hrp.CFrame
-    local cam = workspace.CurrentCamera or Camera
-    local originalCamSubject = cam and cam.CameraSubject
-
-    -- Camera proxy keeps screen steady at original position
-    if not CameraProxy or not CameraProxy.Parent then
-        CameraProxy = Instance.new("Part")
-        CameraProxy.Name = "CociteCamProxy"
-        CameraProxy.Transparency = 1
-        CameraProxy.CanCollide = false
-        CameraProxy.Anchored = true
-        CameraProxy.Size = Vector3.new(1, 1, 1)
-        CameraProxy.Parent = workspace
-    end
-    CameraProxy.CFrame = originalCF
-    if cam then
-        cam.CameraSubject = CameraProxy
-    end
-
-    -- Hologram / Ghost at original spot
-    local ghost = nil
-    pcall(function()
-        ghost = Instance.new("Model")
-        ghost.Name = "CociteTPGhost"
-        for _, part in ipairs(char:GetChildren()) do
-            if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-                local clone = part:Clone()
-                clone.CanCollide = false
-                clone.Anchored = true
-                clone.Transparency = 0.55
-                clone.Material = Enum.Material.ForceField
-                clone.Color = Color3.fromRGB(180, 80, 255)
-                clone.CFrame = part.CFrame
-                clone.Parent = ghost
-            end
-        end
-        ghost.Parent = workspace
-    end)
-
-    -- Teleport real body 2.5 studs in front of target, facing target
-    local targetPos = targetPart.Position
-    local dirFromTarget = (originalCF.Position - targetPos)
-    local tpPos
-    if dirFromTarget.Magnitude > 0.5 then
-        tpPos = targetPos + dirFromTarget.Unit * 2.5
-    else
-        tpPos = targetPos + Vector3.new(0, 0, 2.5)
-    end
-    hrp.CFrame = CFrame.lookAt(tpPos, targetPos)
-    hrp.AssemblyLinearVelocity = Vector3.zero
-
-    task.delay(0.06, function()
-        pcall(function()
-            if hrp and hrp.Parent then
-                hrp.CFrame = originalCF
-                hrp.AssemblyLinearVelocity = Vector3.zero
-            end
-            local curCam = workspace.CurrentCamera or Camera
-            if curCam then
-                if hum and hum.Parent then
-                    curCam.CameraSubject = hum
-                elseif originalCamSubject then
-                    curCam.CameraSubject = originalCamSubject
-                end
-            end
-            if ghost then
-                ghost:Destroy()
-            end
-        end)
-        isTPBulletActive = false
-    end)
-end
-
-local function HookTool(tool)
-    if tool and tool:IsA("Tool") then
-        tool.Activated:Connect(function()
-            if Settings.SilentAim.Enabled and Settings.SilentAim.TPBullet and currentSilentTargetPart then
-                PerformDesyncTP(currentSilentTargetPart)
-            end
-        end)
-    end
-end
 
 local function OnCharacterAdded(char)
     equippedToolName = nil
-    isTPBulletActive = false
-    local curCam = workspace.CurrentCamera or Camera
-    if curCam and char then
-        local hum = char:WaitForChild("Humanoid", 2)
-        if hum then curCam.CameraSubject = hum end
-    end
-    local oldGhost = workspace:FindFirstChild("CociteTPGhost")
-    if oldGhost then oldGhost:Destroy() end
     char.ChildAdded:Connect(function(child)
         if child:IsA("Tool") then
             equippedToolName = child.Name
-            HookTool(child)
         end
     end)
     char.ChildRemoved:Connect(function(child)
@@ -1121,25 +1018,37 @@ if LocalPlayer.Character then
     for _, child in ipairs(LocalPlayer.Character:GetChildren()) do
         if child:IsA("Tool") then
             equippedToolName = child.Name
-            HookTool(child)
             break
         end
     end
 end
 LocalPlayer.CharacterAdded:Connect(OnCharacterAdded)
 
--- Tool Activation on Mobile/PC Click (for ultra-responsive TP Bullet)
-table.insert(_G.CociteConnections, UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        if Settings.SilentAim.Enabled and Settings.SilentAim.TPBullet and currentSilentTargetPart then
-            local char = LocalPlayer.Character
-            if char and char:FindFirstChildOfClass("Tool") then
-                PerformDesyncTP(currentSilentTargetPart)
+-- [[ NO SPREAD ENGINE ]]
+pcall(function()
+    if hookfunction and newcclosure and checkcaller then
+        local oldRandom
+        oldRandom = hookfunction(math.random, newcclosure(function(...)
+            local args = {...}
+            if checkcaller() then
+                return oldRandom(...)
             end
-        end
+
+            if Settings.NoSpread and Settings.NoSpread.Enabled then
+                if (#args == 0) or 
+                   (args[1] == -0.05 and args[2] == 0.05) or 
+                   (args[1] == -0.1 and args[2] == 0.1) or
+                   (args[1] == -0.1) or
+                   (args[1] == -0.05) then
+                    local spread = Settings.NoSpread.Amount or 0
+                    return oldRandom(...) * (spread / 100)
+                end
+            end
+
+            return oldRandom(...)
+        end))
     end
-end))
+end)
 
 -- Shotgun Spread & Ray Direction Calculation (from reference)
 local function CalcRayDirection(origin, targetPos, spread)
@@ -1201,19 +1110,40 @@ RunService.RenderStepped:Connect(function()
     local bestPos = nil
 
     if Settings.SilentAim.Enabled then
-        for _, player in ipairs(Players:GetPlayers()) do
-            if IsValidTarget(player) then
-                local part = GetCharacterAimPart(player.Character, Settings.SilentAim.AimPart)
-                if part then
-                    local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
-                    if onScreen and screenPos.Z > 0 then
-                        local dist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
-                        if dist <= shortestDist then
-                            if not Settings.SilentAim.WallCheck or Settings.SilentAim.TPBullet or IsWallCheckVisible(part, player.Character) then
-                                shortestDist = dist
-                                bestTarget = player
-                                bestPart = part
-                                bestPos = GetPredictedPosition(part, Settings.SilentAim.UsePrediction, Settings.SilentAim.Prediction)
+        local foundSticky = false
+        if Settings.SilentAim.StickyTarget and currentSilentTarget and IsValidTarget(currentSilentTarget) then
+            local part = GetCharacterAimPart(currentSilentTarget.Character, Settings.SilentAim.AimPart)
+            if part then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                if onScreen and screenPos.Z > 0 then
+                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
+                    if dist <= (Settings.SilentAim.FOV * 1.35) then
+                        if not Settings.SilentAim.WallCheck or IsWallCheckVisible(part, currentSilentTarget.Character) then
+                            bestTarget = currentSilentTarget
+                            bestPart = part
+                            bestPos = GetPredictedPosition(part, Settings.SilentAim.UsePrediction, Settings.SilentAim.Prediction)
+                            foundSticky = true
+                        end
+                    end
+                end
+            end
+        end
+
+        if not foundSticky then
+            for _, player in ipairs(Players:GetPlayers()) do
+                if IsValidTarget(player) then
+                    local part = GetCharacterAimPart(player.Character, Settings.SilentAim.AimPart)
+                    if part then
+                        local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                        if onScreen and screenPos.Z > 0 then
+                            local dist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
+                            if dist <= shortestDist then
+                                if not Settings.SilentAim.WallCheck or IsWallCheckVisible(part, player.Character) then
+                                    shortestDist = dist
+                                    bestTarget = player
+                                    bestPart = part
+                                    bestPos = GetPredictedPosition(part, Settings.SilentAim.UsePrediction, Settings.SilentAim.Prediction)
+                                end
                             end
                         end
                     end
@@ -1297,19 +1227,17 @@ pcall(function()
                             local origin = args[2]
                             local targetPos = currentSilentAimPos
 
-                            if Settings.SilentAim.TPBullet and currentSilentTargetPart then
-                                PerformDesyncTP(currentSilentTargetPart)
-                            end
-
                             local toolName = equippedToolName or ""
                             local isShotgun = string.find(string.lower(toolName), "double")
                                            or string.find(string.lower(toolName), "tactical")
                                            or string.find(string.lower(toolName), "shotgun")
-                            if isShotgun then
-                                args[3] = CalcRayDirection(origin, targetPos, 6)
+                            local spreadVal = 0
+                            if not (Settings.NoSpread and Settings.NoSpread.Enabled) then
+                                spreadVal = isShotgun and 6 or 0
                             else
-                                args[3] = CalcRayDirection(origin, targetPos)
+                                spreadVal = ((Settings.NoSpread.Amount or 0) / 100) * (isShotgun and 6 or 0)
                             end
+                            args[3] = CalcRayDirection(origin, targetPos, spreadVal)
                             return oldNamecall(table.unpack(args))
                         end
                     elseif method == "FireServer" and tostring(self) == "MainEvent" then
@@ -1339,7 +1267,28 @@ RunService:BindToRenderStep("CociteCamLock", Enum.RenderPriority.Camera.Value + 
             if not cam then return end
 
             local target = Settings.Aimbot.LockedTarget
-            if not target or not IsValidTarget(target) then
+            if target then
+                if not IsValidTarget(target) then
+                    target = nil
+                    Settings.Aimbot.LockedTarget = nil
+                else
+                    local part = GetCharacterAimPart(target.Character, Settings.Aimbot.AimPart)
+                    if part then
+                        local screenPos, onScreen = cam:WorldToViewportPoint(part.Position)
+                        local center = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 2)
+                        local dist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
+                        if not onScreen or screenPos.Z <= 0 or dist > (Settings.Aimbot.FOV * 1.5) then
+                            target = nil
+                            Settings.Aimbot.LockedTarget = nil
+                        end
+                    else
+                        target = nil
+                        Settings.Aimbot.LockedTarget = nil
+                    end
+                end
+            end
+
+            if not target then
                 target = GetClosestPlayerForAim()
                 Settings.Aimbot.LockedTarget = target
             end
@@ -1350,14 +1299,13 @@ RunService:BindToRenderStep("CociteCamLock", Enum.RenderPriority.Camera.Value + 
                     local aimPos = GetPredictedPosition(part, Settings.Aimbot.UsePrediction, Settings.Aimbot.Prediction)
                     if aimPos then
                         local camPos = cam.CFrame.Position
-                        local targetDir = (aimPos - camPos).Unit
+                        local targetCF = CFrame.lookAt(camPos, aimPos)
                         if Settings.Aimbot.Smooth then
                             local smoothness = math.clamp(Settings.Aimbot.Smoothness or 0.35, 0.01, 1)
                             local smoothFactor = math.clamp(1 - math.pow(1 - math.clamp(smoothness, 0.01, 0.99), (dt or 0.016) * 60), 0.01, 1)
-                            local interpolatedLook = cam.CFrame.LookVector:Lerp(targetDir, smoothFactor)
-                            cam.CFrame = CFrame.new(camPos, camPos + interpolatedLook)
+                            cam.CFrame = cam.CFrame:Lerp(targetCF, smoothFactor)
                         else
-                            cam.CFrame = CFrame.new(camPos, camPos + targetDir)
+                            cam.CFrame = targetCF
                         end
                     end
                 end
@@ -1470,9 +1418,10 @@ end)
 CreateSection(AimbotPage, "CAMERA AIMBOT (REGULAR AIM / CAMLOCK)")
 
 aimbotToggleObj = CreateToggle(AimbotPage, "Aimbot Master", Settings.Aimbot.Enabled, function(state)
+    Settings.Aimbot.Enabled = state
     AimFloatBtn.Visible = state
-    if not updatingAimFromFloat then
-        UpdateAimState(state, true)
+    if not state then
+        UpdateAimState(false)
     end
 end)
 
@@ -1544,8 +1493,18 @@ CreateToggle(AimbotPage, "Wall Check", Settings.SilentAim.WallCheck, function(st
     Settings.SilentAim.WallCheck = state
 end)
 
-CreateToggle(AimbotPage, "TP Bullet (Desync Body TP)", Settings.SilentAim.TPBullet, function(state)
-    Settings.SilentAim.TPBullet = state
+CreateToggle(AimbotPage, "Sticky Target (Close Combat Fix)", Settings.SilentAim.StickyTarget, function(state)
+    Settings.SilentAim.StickyTarget = state
+end)
+
+CreateSection(AimbotPage, "SPREAD MODIFIER (NO SPREAD)")
+
+CreateToggle(AimbotPage, "No Spread", Settings.NoSpread.Enabled, function(state)
+    Settings.NoSpread.Enabled = state
+end)
+
+CreateSlider(AimbotPage, "Spread Amount", 0, 100, Settings.NoSpread.Amount, "%", 5, function(val)
+    Settings.NoSpread.Amount = val
 end)
 
 -- Populate ESP Page Controls
