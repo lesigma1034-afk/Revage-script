@@ -68,6 +68,10 @@ local Settings = {
         WallCheck = false,
         StickyTarget = true,
     },
+    BulletTP = {
+        Enabled = false,
+        TargetPlayer = nil,
+    },
     NoSpread = {
         Enabled = true,
         Amount = 0,
@@ -930,9 +934,8 @@ local function UpdateSilentAimState(state, fromUI)
     end
 end
 
--- Фиксация цели для Сайлента по кнопке без затрагивания камеры
 local lockedSilentTarget = nil
-local IsWallCheckVisible -- forward declaration (определена ниже)
+local IsWallCheckVisible
 
 local function ToggleSilentLock()
     if not Settings.SilentAim.Enabled then return end
@@ -1034,12 +1037,10 @@ IsWallCheckVisible = function(part, targetChar)
     return false
 end
 
--- Active Target Caching
 local currentSilentTarget = nil
 local currentSilentTargetPart = nil
 local currentSilentAimPos = nil
 
--- Equipped Tool Tracking for Shotgun Spread Detection
 local equippedToolName = nil
 
 local function OnCharacterAdded(char)
@@ -1124,7 +1125,6 @@ table.insert(_G.CociteConnections, RunService.Heartbeat:Connect(function()
     end
 end))
 
--- Бонус: патчим FireRate в памяти оружия (если эксплоитор поддерживает getgc)
 local function PatchGunFireRate()
     if not getgc then return end
     for _, v in pairs(getgc(true)) do
@@ -1152,7 +1152,6 @@ LocalPlayer.CharacterAdded:Connect(function()
     end)
 end)
 
--- Visuals: FOV Circles & Snapline Tracer
 local AimbotFOVCircle = nil
 local SilentFOVCircle = nil
 local SilentTracerLine = nil
@@ -1189,34 +1188,63 @@ pcall(function()
     end
 end)
 
--- Main RenderStepped: Обновление зафиксированной цели внутри FOV
 RunService.RenderStepped:Connect(function()
     local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
     local bestTarget = nil
     local bestPart = nil
     local bestPos = nil
 
-    if Settings.SilentAim.Enabled then
-        if lockedSilentTarget and IsValidTarget(lockedSilentTarget) then
-            local part = GetCharacterAimPart(lockedSilentTarget.Character, Settings.SilentAim.AimPart)
+    -- [[ BULLET TP LOGIC & AUTO STOMP ]]
+    if Settings.BulletTP.Enabled and Settings.BulletTP.TargetPlayer then
+        local targetP = Settings.BulletTP.TargetPlayer
+        if IsValidTarget(targetP) then
+            local part = GetCharacterAimPart(targetP.Character, "HumanoidRootPart")
             if part then
-                local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
-                if onScreen and screenPos.Z > 0 then
-                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
-                    if dist <= Settings.SilentAim.FOV then
-                        if not Settings.SilentAim.WallCheck or IsWallCheckVisible(part, lockedSilentTarget.Character) then
-                            bestTarget = lockedSilentTarget
-                            bestPart = part
-                            bestPos = GetPredictedPosition(part, Settings.SilentAim.UsePrediction, Settings.SilentAim.Prediction)
+                bestTarget = targetP
+                bestPart = part
+                bestPos = part.Position + (part.AssemblyLinearVelocity * 0.135)
+            end
+        end
+        -- Auto Stomp check if target is KO
+        if targetP and targetP.Character then
+            local char = targetP.Character
+            local bodyEffects = char:FindFirstChild("BodyEffects")
+            if bodyEffects then
+                local ko = bodyEffects:FindFirstChild("K.O") or bodyEffects:FindFirstChild("KO")
+                if ko and ko.Value == true then
+                    pcall(function()
+                        local rs = game:GetService("ReplicatedStorage")
+                        local mainEvent = rs:FindFirstChild("MainEvent")
+                        if mainEvent then
+                            mainEvent:FireServer("Stomp")
+                        end
+                    end)
+                end
+            end
+        end
+    else
+        if Settings.SilentAim.Enabled then
+            if lockedSilentTarget and IsValidTarget(lockedSilentTarget) then
+                local part = GetCharacterAimPart(lockedSilentTarget.Character, Settings.SilentAim.AimPart)
+                if part then
+                    local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                    if onScreen and screenPos.Z > 0 then
+                        local dist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
+                        if dist <= Settings.SilentAim.FOV then
+                            if not Settings.SilentAim.WallCheck or IsWallCheckVisible(part, lockedSilentTarget.Character) then
+                                bestTarget = lockedSilentTarget
+                                bestPart = part
+                                bestPos = GetPredictedPosition(part, Settings.SilentAim.UsePrediction, Settings.SilentAim.Prediction)
+                            end
                         end
                     end
                 end
-            end
-        else
-            if lockedSilentTarget then
-                lockedSilentTarget = nil
-                SilentFloatBtn.BackgroundColor3 = Color3.fromRGB(0, 130, 180)
-                SilentFloatBtn.Text = "🔮 SILENT: ON"
+            else
+                if lockedSilentTarget then
+                    lockedSilentTarget = nil
+                    SilentFloatBtn.BackgroundColor3 = Color3.fromRGB(0, 130, 180)
+                    SilentFloatBtn.Text = "🔮 SILENT: ON"
+                end
             end
         end
     end
@@ -1225,7 +1253,6 @@ RunService.RenderStepped:Connect(function()
     currentSilentTargetPart = bestPart
     currentSilentAimPos = bestPos
 
-    -- Update FOV Circles
     if AimbotFOVCircle then
         AimbotFOVCircle.Visible = Settings.Aimbot.Enabled and Settings.Aimbot.ShowFOV
         AimbotFOVCircle.Radius = Settings.Aimbot.FOV
@@ -1237,7 +1264,6 @@ RunService.RenderStepped:Connect(function()
         SilentFOVCircle.Position = center
     end
 
-    -- Update Tracers (Snapline)
     if SilentTracerLine then
         if Settings.SilentAim.Enabled and Settings.SilentAim.Tracers and currentSilentTargetPart then
             local screenPos, onScreen = Camera:WorldToViewportPoint(currentSilentTargetPart.Position)
@@ -1254,14 +1280,13 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- [[ 2026 DA HOOD SILENT AIM ENGINE ]]
 local Mouse = LocalPlayer:GetMouse()
 pcall(function()
     if hookmetamethod and newcclosure and checkcaller then
         local oldIndex
         oldIndex = hookmetamethod(game, "__index", newcclosure(function(self, key)
             if not checkcaller() and (key == "Hit" or key == "hit" or key == "Target" or key == "target") and (self == Mouse) then
-                if Settings.SilentAim.Enabled and currentSilentAimPos then
+                if (Settings.SilentAim.Enabled or Settings.BulletTP.Enabled) and currentSilentAimPos then
                     if key == "Hit" or key == "hit" then
                         return CFrame.new(currentSilentAimPos)
                     elseif (key == "Target" or key == "target") and currentSilentTargetPart then
@@ -1282,7 +1307,7 @@ pcall(function()
             local args = {...}
             local self = args[1]
 
-            if not checkcaller() and not isInternalRay and Settings.SilentAim.Enabled and currentSilentAimPos then
+            if not checkcaller() and not isInternalRay and (Settings.SilentAim.Enabled or Settings.BulletTP.Enabled) and currentSilentAimPos then
                 local willHit = true
                 if Settings.SilentAim.HitChance < 100 then
                     willHit = (math.random(1, 100) <= Settings.SilentAim.HitChance)
@@ -1326,7 +1351,6 @@ pcall(function()
     end
 end)
 
--- Regular Aimbot (CamLock Engine)
 RunService:BindToRenderStep("CociteCamLock", Enum.RenderPriority.Camera.Value + 1, function(dt)
     pcall(function()
         if Settings.Aimbot.Enabled and AimActive then
@@ -1584,6 +1608,82 @@ CreateSlider(AimbotPage, "Fire Rate Delay", 0.03, 0.5, Settings.RapidFire.Rate, 
     Settings.RapidFire.Rate = val
 end)
 
+-- [[ BULLET TP & AUTO STOMP UI SECTION ]]
+CreateSection(AimbotPage, "BULLET TP & AUTO STOMP")
+
+CreateToggle(AimbotPage, "Bullet TP Target", Settings.BulletTP.Enabled, function(state)
+    Settings.BulletTP.Enabled = state
+end)
+
+local tpPickerFrame = Instance.new("Frame", AimbotPage)
+tpPickerFrame.BackgroundColor3 = Color3.fromRGB(20, 15, 32)
+tpPickerFrame.Size = UDim2.new(1, 0, 0, 34)
+Instance.new("UICorner", tpPickerFrame).CornerRadius = UDim.new(0, 8)
+local tpStroke = Instance.new("UIStroke", tpPickerFrame)
+tpStroke.Color = Color3.fromRGB(90, 40, 160)
+tpStroke.Thickness = 1.2
+
+local selectedTPPlayer = ""
+local tpServerPlayers = {}
+
+local function RefreshTPPlayers()
+    tpServerPlayers = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer then
+            table.insert(tpServerPlayers, p.Name)
+        end
+    end
+    if #tpServerPlayers == 0 then
+        table.insert(tpServerPlayers, "None")
+        selectedTPPlayer = ""
+    else
+        if not table.find(tpServerPlayers, selectedTPPlayer) then
+            selectedTPPlayer = tpServerPlayers[1]
+            Settings.BulletTP.TargetPlayer = Players:FindFirstChild(selectedTPPlayer)
+        end
+    end
+end
+RefreshTPPlayers()
+
+local tpSelectBtn = Instance.new("TextButton", tpPickerFrame)
+tpSelectBtn.BackgroundTransparency = 1
+tpSelectBtn.Position = UDim2.new(0, 10, 0, 0)
+tpSelectBtn.Size = UDim2.new(1, -50, 1, 0)
+tpSelectBtn.Font = Enum.Font.GothamSemibold
+tpSelectBtn.Text = "Target: " .. (selectedTPPlayer ~= "" and selectedTPPlayer or "None")
+tpSelectBtn.TextColor3 = Color3.fromRGB(210, 190, 255)
+tpSelectBtn.TextSize = 11
+tpSelectBtn.TextXAlignment = Enum.TextXAlignment.Left
+
+local tpGearBtn = Instance.new("TextButton", tpPickerFrame)
+tpGearBtn.BackgroundColor3 = Color3.fromRGB(32, 24, 48)
+tpGearBtn.Position = UDim2.new(1, -38, 0.5, -12)
+tpGearBtn.Size = UDim2.new(0, 28, 0, 24)
+tpGearBtn.Font = Enum.Font.GothamBold
+tpGearBtn.Text = "⚙️"
+tpGearBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+tpGearBtn.TextSize = 12
+Instance.new("UICorner", tpGearBtn).CornerRadius = UDim.new(0, 6)
+
+local tpIdx = 1
+local function CycleTPTarget()
+    RefreshTPPlayers()
+    if #tpServerPlayers > 0 and tpServerPlayers[1] ~= "None" then
+        tpIdx = tpIdx + 1
+        if tpIdx > #tpServerPlayers then tpIdx = 1 end
+        selectedTPPlayer = tpServerPlayers[tpIdx]
+        tpSelectBtn.Text = "Target: " .. selectedTPPlayer
+        Settings.BulletTP.TargetPlayer = Players:FindFirstChild(selectedTPPlayer)
+    else
+        tpSelectBtn.Text = "Target: None"
+        selectedTPPlayer = ""
+        Settings.BulletTP.TargetPlayer = nil
+    end
+end
+
+tpGearBtn.MouseButton1Click:Connect(CycleTPTarget)
+tpSelectBtn.MouseButton1Click:Connect(CycleTPTarget)
+
 -- Populate ESP Page Controls
 CreateSection(ESPPage, "ESP VISUALS")
 
@@ -1725,7 +1825,6 @@ listLayout.SortOrder = Enum.SortOrder.LayoutOrder
 listLayout.Padding = UDim.new(0, 4)
 
 local function UpdateWhitelistUI()
-
     for _, child in ipairs(listContainer:GetChildren()) do
         if child:IsA("Frame") or child:IsA("TextLabel") or child:IsA("TextButton") then
             child:Destroy()
