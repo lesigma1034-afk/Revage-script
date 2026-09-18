@@ -808,7 +808,6 @@ local function UpdateFlyState(state, fromUI)
                 currentFlyCFrame = hrp.CFrame
             end
 
-            -- Noclip through walls, ceilings & floors while VClip-Flying
             for _, part in ipairs(char:GetChildren()) do
                 if part:IsA("BasePart") and part.CanCollide then
                     part.CanCollide = false
@@ -819,7 +818,6 @@ local function UpdateFlyState(state, fromUI)
 
             local moveVector = Vector3.zero
 
-            -- PC Inputs
             if UserInputService:IsKeyDown(Enum.KeyCode.W) then
                 moveVector = moveVector + camCF.LookVector
             end
@@ -839,7 +837,6 @@ local function UpdateFlyState(state, fromUI)
                 moveVector = moveVector - Vector3.new(0, 1, 0)
             end
 
-            -- Mobile Support (Joystick MoveDirection + Camera vertical tilt)
             if moveVector.Magnitude == 0 and hum.MoveDirection.Magnitude > 0 then
                 local moveDir = hum.MoveDirection
                 moveVector = moveVector + Vector3.new(moveDir.X, camCF.LookVector.Y * moveDir.Magnitude, moveDir.Z)
@@ -895,7 +892,6 @@ AimFloatBtn.MouseButton1Click:Connect(function()
     UpdateAimState(not AimActive)
 end)
 
--- PC Keybinds: Q for CamLock, X for Fly, B for VClip Up, V for VClip Down
 table.insert(_G.CociteConnections, UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if input.KeyCode == Enum.KeyCode.Q then
@@ -931,8 +927,51 @@ local function UpdateSilentAimState(state, fromUI)
     end
 end
 
+-- Фиксация цели для Сайлента по кнопке без затрагивания камеры
+local lockedSilentTarget = nil
+
+local function ToggleSilentLock()
+    if not Settings.SilentAim.Enabled then return end
+    if lockedSilentTarget then
+        lockedSilentTarget = nil
+        SilentFloatBtn.BackgroundColor3 = Color3.fromRGB(0, 130, 180)
+        SilentFloatBtn.Text = "🔮 SILENT: ON"
+    else
+        local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+        local shortestDist = Settings.SilentAim.FOV
+        local bestTarget = nil
+
+        for _, player in ipairs(Players:GetPlayers()) do
+            if IsValidTarget(player) then
+                local part = GetCharacterAimPart(player.Character, Settings.SilentAim.AimPart)
+                if part then
+                    local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                    if onScreen and screenPos.Z > 0 then
+                        local dist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
+                        if dist <= shortestDist then
+                            if not Settings.SilentAim.WallCheck or IsWallCheckVisible(part, player.Character) then
+                                shortestDist = dist
+                                bestTarget = player
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        if bestTarget then
+            lockedSilentTarget = bestTarget
+            SilentFloatBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+            SilentFloatBtn.Text = "🔮 LOCKED: " .. bestTarget.Name
+        end
+    end
+end
+
 SilentFloatBtn.MouseButton1Click:Connect(function()
-    UpdateSilentAimState(not Settings.SilentAim.Enabled, false)
+    if not Settings.SilentAim.Enabled then
+        UpdateSilentAimState(true, false)
+    end
+    ToggleSilentLock()
 end)
 
 LoginBtn.MouseButton1Click:Connect(function()
@@ -991,7 +1030,7 @@ local function IsWallCheckVisible(part, targetChar)
     return false
 end
 
--- Active Target Caching (Declared first to avoid forward-reference scope bugs)
+-- Active Target Caching
 local currentSilentTarget = nil
 local currentSilentTargetPart = nil
 local currentSilentAimPos = nil
@@ -1050,7 +1089,6 @@ pcall(function()
     end
 end)
 
--- Shotgun Spread & Ray Direction Calculation (from reference)
 local function CalcRayDirection(origin, targetPos, spread)
     local dir = (targetPos - origin).Unit
     if spread and spread > 0 then
@@ -1101,53 +1139,34 @@ pcall(function()
     end
 end)
 
--- Main RenderStepped: Select Closest Target & Update Visuals
+-- Main RenderStepped: Обновление зафиксированной цели внутри FOV
 RunService.RenderStepped:Connect(function()
     local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-    local shortestDist = Settings.SilentAim.FOV
     local bestTarget = nil
     local bestPart = nil
     local bestPos = nil
 
     if Settings.SilentAim.Enabled then
-        local foundSticky = false
-        if Settings.SilentAim.StickyTarget and currentSilentTarget and IsValidTarget(currentSilentTarget) then
-            local part = GetCharacterAimPart(currentSilentTarget.Character, Settings.SilentAim.AimPart)
+        if lockedSilentTarget and IsValidTarget(lockedSilentTarget) then
+            local part = GetCharacterAimPart(lockedSilentTarget.Character, Settings.SilentAim.AimPart)
             if part then
                 local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
                 if onScreen and screenPos.Z > 0 then
                     local dist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
-                    if dist <= (Settings.SilentAim.FOV * 1.35) then
-                        if not Settings.SilentAim.WallCheck or IsWallCheckVisible(part, currentSilentTarget.Character) then
-                            bestTarget = currentSilentTarget
+                    if dist <= Settings.SilentAim.FOV then
+                        if not Settings.SilentAim.WallCheck or IsWallCheckVisible(part, lockedSilentTarget.Character) then
+                            bestTarget = lockedSilentTarget
                             bestPart = part
                             bestPos = GetPredictedPosition(part, Settings.SilentAim.UsePrediction, Settings.SilentAim.Prediction)
-                            foundSticky = true
                         end
                     end
                 end
             end
-        end
-
-        if not foundSticky then
-            for _, player in ipairs(Players:GetPlayers()) do
-                if IsValidTarget(player) then
-                    local part = GetCharacterAimPart(player.Character, Settings.SilentAim.AimPart)
-                    if part then
-                        local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
-                        if onScreen and screenPos.Z > 0 then
-                            local dist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
-                            if dist <= shortestDist then
-                                if not Settings.SilentAim.WallCheck or IsWallCheckVisible(part, player.Character) then
-                                    shortestDist = dist
-                                    bestTarget = player
-                                    bestPart = part
-                                    bestPos = GetPredictedPosition(part, Settings.SilentAim.UsePrediction, Settings.SilentAim.Prediction)
-                                end
-                            end
-                        end
-                    end
-                end
+        else
+            if lockedSilentTarget then
+                lockedSilentTarget = nil
+                SilentFloatBtn.BackgroundColor3 = Color3.fromRGB(0, 130, 180)
+                SilentFloatBtn.Text = "🔮 SILENT: ON"
             end
         end
     end
@@ -1186,7 +1205,6 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- [[ 2026 DA HOOD SILENT AIM ENGINE ]]
--- Hook 1: Fast __index for Mouse.Hit & Mouse.Target
 local Mouse = LocalPlayer:GetMouse()
 pcall(function()
     if hookmetamethod and newcclosure and checkcaller then
@@ -1206,7 +1224,6 @@ pcall(function()
     end
 end)
 
--- Hook 2: __namecall for Raycast & MainEvent
 pcall(function()
     if hookmetamethod and getnamecallmethod and newcclosure and checkcaller then
         local oldNamecall
@@ -1259,7 +1276,7 @@ pcall(function()
     end
 end)
 
--- Regular Aimbot (CamLock Engine - BindToRenderStep for Uncontested Camera Lock)
+-- Regular Aimbot (CamLock Engine)
 RunService:BindToRenderStep("CociteCamLock", Enum.RenderPriority.Camera.Value + 1, function(dt)
     pcall(function()
         if Settings.Aimbot.Enabled and AimActive then
