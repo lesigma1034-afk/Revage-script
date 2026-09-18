@@ -21,29 +21,6 @@ pcall(function()
             pcall(function() d:Remove() end)
         end
     end
-    local prevCoreGui = game:-- COCITESCRIPT | Da Hood & Flame Hood Edition (Clean Startup & Anti-Freeze)
-local RunService = game:GetService("RunService")
-local Players = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
-local LocalPlayer = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
-workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
-    Camera = workspace.CurrentCamera
-end)
-
-pcall(function()
-    RunService:UnbindFromRenderStep("CociteCamLock")
-    if _G.CociteConnections then
-        for _, conn in pairs(_G.CociteConnections) do
-            pcall(function() conn:Disconnect() end)
-        end
-    end
-    if _G.CociteDrawings then
-        for _, d in pairs(_G.CociteDrawings) do
-            pcall(function() d:Remove() end)
-        end
-    end
     local prevCoreGui = game:GetService("CoreGui"):FindFirstChild("CociteCyberGui")
     if prevCoreGui then prevCoreGui:Destroy() end
     if LocalPlayer and LocalPlayer:FindFirstChild("PlayerGui") then
@@ -69,30 +46,30 @@ _G.CociteDrawings = {}
 
 local Settings = {
     Aimbot = {
-        Enabled = false, -- Выключено по умолчанию
+        Enabled = true,
         LockedTarget = nil,
         AimPart = "Head",
         FOV = 220,
         ShowFOV = true,
-        Smooth = false, -- Убрана плавность (мгновенный лок)
+        Smooth = true,
         Smoothness = 0.35,
         Prediction = 0.135,
         UsePrediction = true,
     },
     SilentAim = {
-        Enabled = false, -- Выключено по умолчанию
+        Enabled = true,
         AimPart = "HumanoidRootPart",
         FOV = 200,
         ShowFOV = true,
         Tracers = false,
-        HitChance = 100, -- 100% попадание
+        HitChance = 100,
         Prediction = 0.135,
         UsePrediction = true,
         WallCheck = false,
         StickyTarget = true,
     },
     NoSpread = {
-        Enabled = false,
+        Enabled = true,
         Amount = 0,
     },
     Whitelist = {
@@ -729,19 +706,19 @@ aimFloatStroke.Thickness = 1.5
 -- Float Button 2: Silent Aim
 local SilentFloatBtn = Instance.new("TextButton", ScreenGui)
 SilentFloatBtn.Name = "CociteSilentFloatBtn"
-SilentFloatBtn.BackgroundColor3 = Color3.fromRGB(16, 22, 32)
+SilentFloatBtn.BackgroundColor3 = Settings.SilentAim.Enabled and Color3.fromRGB(0, 130, 180) or Color3.fromRGB(16, 22, 32)
 SilentFloatBtn.Position = UDim2.new(0.82, 0, 0.44, 0)
 SilentFloatBtn.Size = UDim2.new(0, 105, 0, 42)
 SilentFloatBtn.Font = Enum.Font.GothamBold
-SilentFloatBtn.Text = "🔮 SILENT: OFF"
-SilentFloatBtn.TextColor3 = Color3.fromRGB(150, 200, 230)
+SilentFloatBtn.Text = Settings.SilentAim.Enabled and "🔮 SILENT: ON" or "🔮 SILENT: OFF"
+SilentFloatBtn.TextColor3 = Settings.SilentAim.Enabled and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(150, 200, 230)
 SilentFloatBtn.TextSize = 12
 SilentFloatBtn.Visible = false
 SilentFloatBtn.Active = true
 SilentFloatBtn.Draggable = true
 Instance.new("UICorner", SilentFloatBtn).CornerRadius = UDim.new(0, 10)
 local silentFloatStroke = Instance.new("UIStroke", SilentFloatBtn)
-silentFloatStroke.Color = Color3.fromRGB(40, 90, 130)
+silentFloatStroke.Color = Settings.SilentAim.Enabled and Color3.fromRGB(0, 220, 255) or Color3.fromRGB(40, 90, 130)
 silentFloatStroke.Thickness = 1.5
 
 -- Float Button 3: Fly
@@ -1019,8 +996,7 @@ LoginBtn.MouseButton1Click:Connect(function()
         TweenService:Create(MainFrame, TweenInfo.new(0.5), {BackgroundTransparency = 0}):Play()
         TweenService:Create(MainStroke, TweenInfo.new(0.5), {Transparency = 0}):Play()
 
-        -- Ничего сами не включаем, оставляем текущие состояния Settings
-        UpdateAimState(Settings.Aimbot.Enabled)
+        UpdateAimState(false)
         UpdateSilentAimState(Settings.SilentAim.Enabled, true)
         UpdateFlyState(Settings.Misc.Fly, true)
     else
@@ -1199,21 +1175,21 @@ RunService.RenderStepped:Connect(function()
     currentSilentTargetPart = bestPart
     currentSilentAimPos = bestPos
 
-    -- Update FOV Circles (невидимы пока главное окно/авторизация не пройдены)
+    -- Update FOV Circles
     if AimbotFOVCircle then
-        AimbotFOVCircle.Visible = MainFrame.Visible and Settings.Aimbot.Enabled and Settings.Aimbot.ShowFOV
+        AimbotFOVCircle.Visible = Settings.Aimbot.Enabled and Settings.Aimbot.ShowFOV
         AimbotFOVCircle.Radius = Settings.Aimbot.FOV
         AimbotFOVCircle.Position = center
     end
     if SilentFOVCircle then
-        SilentFOVCircle.Visible = MainFrame.Visible and Settings.SilentAim.Enabled and Settings.SilentAim.ShowFOV
+        SilentFOVCircle.Visible = Settings.SilentAim.Enabled and Settings.SilentAim.ShowFOV
         SilentFOVCircle.Radius = Settings.SilentAim.FOV
         SilentFOVCircle.Position = center
     end
 
     -- Update Tracers (Snapline)
     if SilentTracerLine then
-        if MainFrame.Visible and Settings.SilentAim.Enabled and Settings.SilentAim.Tracers and currentSilentTargetPart then
+        if Settings.SilentAim.Enabled and Settings.SilentAim.Tracers and currentSilentTargetPart then
             local screenPos, onScreen = Camera:WorldToViewportPoint(currentSilentTargetPart.Position)
             if onScreen and screenPos.Z > 0 then
                 SilentTracerLine.From = center
@@ -1300,7 +1276,7 @@ pcall(function()
     end
 end)
 
--- Regular Aimbot (CamLock Engine - Мгновенный лок без плавности)
+-- Regular Aimbot (CamLock Engine)
 RunService:BindToRenderStep("CociteCamLock", Enum.RenderPriority.Camera.Value + 1, function(dt)
     pcall(function()
         if Settings.Aimbot.Enabled and AimActive then
@@ -1346,7 +1322,7 @@ RunService:BindToRenderStep("CociteCamLock", Enum.RenderPriority.Camera.Value + 
                             local smoothFactor = math.clamp(1 - math.pow(1 - math.clamp(smoothness, 0.01, 0.99), (dt or 0.016) * 60), 0.01, 1)
                             cam.CFrame = cam.CFrame:Lerp(targetCF, smoothFactor)
                         else
-                            cam.CFrame = targetCF -- Моментальный жесткий лок
+                            cam.CFrame = targetCF
                         end
                     end
                 end
