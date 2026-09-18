@@ -72,6 +72,10 @@ local Settings = {
         Enabled = true,
         Amount = 0,
     },
+    RapidFire = {
+        Enabled = false,
+        Rate = 0.08,
+    },
     Whitelist = {
         Players = {},
         Friends = true,
@@ -360,7 +364,6 @@ Header.Size = UDim2.new(1, 0, 0, 42)
 Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 14)
 
 local Title = Instance.new("TextLabel", Header)
-
 Title.BackgroundTransparency = 1
 Title.Position = UDim2.new(0, 16, 0, 0)
 Title.Size = UDim2.new(1, -50, 1, 0)
@@ -929,6 +932,7 @@ end
 
 -- Фиксация цели для Сайлента по кнопке без затрагивания камеры
 local lockedSilentTarget = nil
+local IsWallCheckVisible -- forward declaration (определена ниже)
 
 local function ToggleSilentLock()
     if not Settings.SilentAim.Enabled then return end
@@ -1007,7 +1011,7 @@ end)
 
 local isInternalRay = false
 
-local function IsWallCheckVisible(part, targetChar)
+IsWallCheckVisible = function(part, targetChar)
     if not Settings.SilentAim.WallCheck then return true end
     local localChar = LocalPlayer.Character
     if not localChar then return false end
@@ -1101,6 +1105,52 @@ local function CalcRayDirection(origin, targetPos, spread)
     end
     return dir * 1000
 end
+
+-- [[ RAPID FIRE ENGINE ]]
+local rapidFireLastShot = 0
+
+table.insert(_G.CociteConnections, RunService.Heartbeat:Connect(function()
+    if not Settings.RapidFire.Enabled then return end
+    if not UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then return end
+    local char = LocalPlayer.Character
+    local tool = char and char:FindFirstChildOfClass("Tool")
+    if not tool then return end
+    local now = tick()
+    if now - rapidFireLastShot >= (Settings.RapidFire.Rate or 0.08) then
+        rapidFireLastShot = now
+        pcall(function()
+            tool:Activate()
+        end)
+    end
+end))
+
+-- Бонус: патчим FireRate в памяти оружия (если эксплоитор поддерживает getgc)
+local function PatchGunFireRate()
+    if not getgc then return end
+    for _, v in pairs(getgc(true)) do
+        if typeof(v) == "table" then
+            for _, key in ipairs({"FireRate", "fireRate", "Cooldown", "cooldown", "FireSpeed"}) do
+                local val = rawget(v, key)
+                if type(val) == "number" and val > 0 and val < 10 then
+                    pcall(function()
+                        rawset(v, key, 0.03)
+                    end)
+                end
+            end
+        end
+    end
+end
+
+task.spawn(function()
+    task.wait(1)
+    PatchGunFireRate()
+end)
+LocalPlayer.CharacterAdded:Connect(function()
+    task.spawn(function()
+        task.wait(1)
+        PatchGunFireRate()
+    end)
+end)
 
 -- Visuals: FOV Circles & Snapline Tracer
 local AimbotFOVCircle = nil
@@ -1522,6 +1572,16 @@ end)
 
 CreateSlider(AimbotPage, "Spread Amount", 0, 100, Settings.NoSpread.Amount, "%", 5, function(val)
     Settings.NoSpread.Amount = val
+end)
+
+CreateSection(AimbotPage, "RAPID FIRE")
+
+CreateToggle(AimbotPage, "Rapid Fire", Settings.RapidFire.Enabled, function(state)
+    Settings.RapidFire.Enabled = state
+end)
+
+CreateSlider(AimbotPage, "Fire Rate Delay", 0.03, 0.5, Settings.RapidFire.Rate, "s", 0.01, function(val)
+    Settings.RapidFire.Rate = val
 end)
 
 -- Populate ESP Page Controls
