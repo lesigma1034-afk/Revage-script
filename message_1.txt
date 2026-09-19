@@ -1,5 +1,5 @@
 -- COCITESCRIPT | Da Hood & Flame Hood
--- Silent boot + Real Rapid Fire + GodMode (animation freeze)
+-- Silent boot + Real Rapid Fire + GodMode
 
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
@@ -98,7 +98,7 @@ local Settings = {
 	}
 }
 
--- ========== GODMODE (Animation Freeze) ==========
+-- ========== GODMODE ==========
 local GodModeActive = false
 local godTrack = nil
 local godHeartbeat = nil
@@ -168,7 +168,7 @@ LocalPlayer.CharacterAdded:Connect(function()
 		GodAnimF()
 	end
 end)
--- ================================================
+-- =============================
 
 local friendCache = {}
 local function IsFriendCached(userId)
@@ -256,7 +256,7 @@ local function GetClosestPlayerForAim()
 	return closest
 end
 
--- GUI
+-- GUI start
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "CociteCyberGui"
 pcall(function() ScreenGui.Parent = game.CoreGui end)
@@ -710,6 +710,10 @@ TabButtons["AIMBOT"].TextColor3 = Color3.fromRGB(255, 255, 255)
 
 local AimActive = false
 local aimbotToggleObj = nil
+local silentToggleObj = nil
+local flyToggleObj = nil
+local godToggleObj = nil
+local updatingFromFloat = false
 
 local AimFloatBtn = Instance.new("TextButton", ScreenGui)
 AimFloatBtn.Name = "CociteAimFloatBtn"
@@ -762,12 +766,8 @@ local flyFloatStroke = Instance.new("UIStroke", FlyFloatBtn)
 flyFloatStroke.Color = Color3.fromRGB(170, 70, 45)
 flyFloatStroke.Thickness = 1.6
 
-local updatingFromFloat = false
-local silentToggleObj = nil
 local flyConnection = nil
-local flyToggleObj = nil
 local currentFlyCFrame = nil
-local godToggleObj = nil
 
 local function DoVClip(distance)
 	local char = LocalPlayer.Character
@@ -1384,7 +1384,9 @@ RunService.RenderStepped:Connect(function()
 	end
 end)
 
--- AIMBOT PAGE
+-- ===================== UI PAGES =====================
+
+-- AIMBOT
 CreateSection(AimbotPage, "CAMERA AIMBOT")
 aimbotToggleObj = CreateToggle(AimbotPage, "Aimbot Master", Settings.Aimbot.Enabled, function(state)
 	Settings.Aimbot.Enabled = state
@@ -1399,7 +1401,7 @@ CreateSlider(AimbotPage, "Smooth Speed", 0.05, 1, Settings.Aimbot.Smoothness, ""
 CreateToggle(AimbotPage, "Aimbot Prediction", Settings.Aimbot.UsePrediction, function(state) Settings.Aimbot.UsePrediction = state end)
 CreateSlider(AimbotPage, "Prediction Val", 0.05, 0.3, Settings.Aimbot.Prediction, "s", 0.005, function(val) Settings.Aimbot.Prediction = val end)
 
-CreateSection(AimbotPage, "SILENT AIM (100% LOCKED ONLY)")
+CreateSection(AimbotPage, "SILENT AIM")
 silentToggleObj = CreateToggle(AimbotPage, "Silent Aim Master", Settings.SilentAim.Enabled, function(state)
 	if not updatingFromFloat then UpdateSilentAimState(state, true) end
 end)
@@ -1412,7 +1414,7 @@ CreateSlider(AimbotPage, "Prediction Amount", 0.05, 0.3, Settings.SilentAim.Pred
 CreateToggle(AimbotPage, "Wall Check", Settings.SilentAim.WallCheck, function(state) Settings.SilentAim.WallCheck = state end)
 CreateToggle(AimbotPage, "Sticky Target", Settings.SilentAim.StickyTarget, function(state) Settings.SilentAim.StickyTarget = state end)
 
-CreateSection(AimbotPage, "SPREAD MODIFIER")
+CreateSection(AimbotPage, "SPREAD")
 CreateToggle(AimbotPage, "No Spread", Settings.NoSpread.Enabled, function(state) Settings.NoSpread.Enabled = state end)
 CreateSlider(AimbotPage, "Spread Amount", 0, 100, Settings.NoSpread.Amount, "%", 5, function(val) Settings.NoSpread.Amount = val end)
 
@@ -1436,7 +1438,7 @@ CreateSlider(AimbotPage, "Min Delay", 0.02, 0.15, Settings.RapidFire.MinDelay, "
 end)
 
 -- ESP
-CreateSection(ESPPage, "ESP VISUALS")
+CreateSection(ESPPage, "ESP")
 CreateToggle(ESPPage, "Master ESP", false, function(state)
 	Settings.ESP.Enabled = state
 	if not state then ClearESP() end
@@ -1446,180 +1448,51 @@ CreateToggle(ESPPage, "Chams ESP", true, function(state) Settings.ESP.Chams = st
 CreateToggle(ESPPage, "Name ESP", true, function(state) Settings.ESP.Names = state end)
 
 -- WHITELIST
-CreateSection(WhitelistPage, "GLOBAL FILTERS")
+CreateSection(WhitelistPage, "FILTERS")
 CreateToggle(WhitelistPage, "Whitelist Friends", Settings.Whitelist.Friends, function(state) Settings.Whitelist.Friends = state end)
 CreateToggle(WhitelistPage, "Whitelist Team", Settings.Whitelist.Team, function(state) Settings.Whitelist.Team = state end)
 
-CreateSection(WhitelistPage, "ADD PLAYER")
-local serverPickerFrame = Instance.new("Frame", WhitelistPage)
-serverPickerFrame.BackgroundColor3 = Color3.fromRGB(18, 14, 30)
-serverPickerFrame.Size = UDim2.new(1, 0, 0, 34)
-Instance.new("UICorner", serverPickerFrame).CornerRadius = UDim.new(0, 10)
-local spStroke = Instance.new("UIStroke", serverPickerFrame)
-spStroke.Color = Color3.fromRGB(100, 45, 170)
-spStroke.Thickness = 1.3
+-- MISC
+CreateSection(MiscPage, "GODMODE (ANIMATION FREEZE)")
+godToggleObj = CreateToggle(MiscPage, "GodMode", Settings.Misc.GodMode, function(state)
+	UpdateGodMode(state)
+end)
 
-local selectedPlayerName = ""
-local serverPlayers = {}
-local function RefreshServerPlayers()
-	serverPlayers = {}
-	for _, p in ipairs(Players:GetPlayers()) do
-		if p ~= LocalPlayer then table.insert(serverPlayers, p.Name) end
-	end
-	if #serverPlayers == 0 then
-		table.insert(serverPlayers, "None in server")
-		selectedPlayerName = ""
-	else
-		if not table.find(serverPlayers, selectedPlayerName) then selectedPlayerName = serverPlayers[1] end
-	end
+CreateSection(MiscPage, "FLY")
+flyToggleObj = CreateToggle(MiscPage, "Fly Master", Settings.Misc.Fly, function(state) UpdateFlyState(state, true) end)
+CreateSlider(MiscPage, "Fly Speed", 10, 200, Settings.Misc.FlySpeed, " studs/s", 5, function(val) Settings.Misc.FlySpeed = val end)
+
+CreateSection(MiscPage, "VCLIP")
+CreateSlider(MiscPage, "VClip Distance", 1, 50, Settings.Misc.VClipDistance, " st", 1, function(val) Settings.Misc.VClipDistance = val end)
+CreateButton(MiscPage, "▲ VClip Up", function() DoVClip(Settings.Misc.VClipDistance) end)
+CreateButton(MiscPage, "▼ VClip Down", function() DoVClip(-Settings.Misc.VClipDistance) end)
+
+CreateSection(MiscPage, "HOTKEYS")
+local helpFrame = Instance.new("Frame", MiscPage)
+helpFrame.BackgroundColor3 = Color3.fromRGB(18, 14, 30)
+helpFrame.Size = UDim2.new(1, 0, 0, 70)
+Instance.new("UICorner", helpFrame).CornerRadius = UDim.new(0, 10)
+local hfStroke = Instance.new("UIStroke", helpFrame)
+hfStroke.Color = Color3.fromRGB(100, 45, 170)
+hfStroke.Thickness = 1.3
+local hfLayout = Instance.new("UIListLayout", helpFrame)
+hfLayout.SortOrder = Enum.SortOrder.LayoutOrder
+hfLayout.Padding = UDim.new(0, 2)
+local hfPad = Instance.new("UIPadding", helpFrame)
+hfPad.PaddingLeft = UDim.new(0, 10)
+hfPad.PaddingTop = UDim.new(0, 6)
+
+local function AddKeyHelp(txt)
+	local lbl = Instance.new("TextLabel", helpFrame)
+	lbl.BackgroundTransparency = 1
+	lbl.Size = UDim2.new(1, -20, 0, 16)
+	lbl.Font = Enum.Font.GothamSemibold
+	lbl.Text = txt
+	lbl.TextColor3 = Color3.fromRGB(200, 180, 230)
+	lbl.TextSize = 11
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
 end
-RefreshServerPlayers()
-
-local selectBtn = Instance.new("TextButton", serverPickerFrame)
-selectBtn.BackgroundTransparency = 1
-selectBtn.Position = UDim2.new(0, 10, 0, 0)
-selectBtn.Size = UDim2.new(1, -70, 1, 0)
-selectBtn.Font = Enum.Font.GothamSemibold
-selectBtn.Text = "Pick: " .. (selectedPlayerName ~= "" and selectedPlayerName or "None")
-selectBtn.TextColor3 = Color3.fromRGB(210, 190, 255)
-selectBtn.TextSize = 11
-selectBtn.TextXAlignment = Enum.TextXAlignment.Left
-
-local curIdx = 1
-selectBtn.MouseButton1Click:Connect(function()
-	RefreshServerPlayers()
-	if #serverPlayers > 0 and serverPlayers[1] ~= "None in server" then
-		curIdx = curIdx + 1
-		if curIdx > #serverPlayers then curIdx = 1 end
-		selectedPlayerName = serverPlayers[curIdx]
-		selectBtn.Text = "Pick: " .. selectedPlayerName
-	else
-		selectBtn.Text = "Pick: None in server"
-		selectedPlayerName = ""
-	end
-end)
-
-local addPickerBtn = Instance.new("TextButton", serverPickerFrame)
-addPickerBtn.BackgroundColor3 = Color3.fromRGB(120, 30, 210)
-addPickerBtn.Position = UDim2.new(1, -56, 0.5, -12)
-addPickerBtn.Size = UDim2.new(0, 48, 0, 24)
-addPickerBtn.Font = Enum.Font.GothamBold
-addPickerBtn.Text = "+ ADD"
-addPickerBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-addPickerBtn.TextSize = 10
-Instance.new("UICorner", addPickerBtn).CornerRadius = UDim.new(0, 6)
-
-local manualInputFrame = Instance.new("Frame", WhitelistPage)
-manualInputFrame.BackgroundColor3 = Color3.fromRGB(18, 14, 30)
-manualInputFrame.Size = UDim2.new(1, 0, 0, 34)
-Instance.new("UICorner", manualInputFrame).CornerRadius = UDim.new(0, 10)
-local miStroke = Instance.new("UIStroke", manualInputFrame)
-miStroke.Color = Color3.fromRGB(100, 45, 170)
-miStroke.Thickness = 1.3
-
-local manualBox = Instance.new("TextBox", manualInputFrame)
-manualBox.BackgroundTransparency = 1
-manualBox.Position = UDim2.new(0, 10, 0, 0)
-manualBox.Size = UDim2.new(1, -70, 1, 0)
-manualBox.Font = Enum.Font.Gotham
-manualBox.PlaceholderText = "Type player name..."
-manualBox.PlaceholderColor3 = Color3.fromRGB(120, 100, 140)
-manualBox.Text = ""
-manualBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-manualBox.TextSize = 11
-manualBox.TextXAlignment = Enum.TextXAlignment.Left
-
-local addManualBtn = Instance.new("TextButton", manualInputFrame)
-addManualBtn.BackgroundColor3 = Color3.fromRGB(120, 30, 210)
-addManualBtn.Position = UDim2.new(1, -56, 0.5, -12)
-addManualBtn.Size = UDim2.new(0, 48, 0, 24)
-addManualBtn.Font = Enum.Font.GothamBold
-addManualBtn.Text = "+ ADD"
-addManualBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-addManualBtn.TextSize = 10
-Instance.new("UICorner", addManualBtn).CornerRadius = UDim.new(0, 6)
-
-CreateSection(WhitelistPage, "WHITELISTED PLAYERS")
-local listContainer = Instance.new("Frame", WhitelistPage)
-listContainer.BackgroundTransparency = 1
-listContainer.Size = UDim2.new(1, 0, 0, 0)
-listContainer.AutomaticSize = Enum.AutomaticSize.Y
-local listLayout = Instance.new("UIListLayout", listContainer)
-listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-listLayout.Padding = UDim.new(0, 4)
-
-local function UpdateWhitelistUI()
-	for _, child in ipairs(listContainer:GetChildren()) do
-		if child:IsA("Frame") or child:IsA("TextLabel") or child:IsA("TextButton") then child:Destroy() end
-	end
-	local count = 0
-	for name in pairs(Settings.Whitelist.Players) do
-		count = count + 1
-		local itemFrame = Instance.new("Frame", listContainer)
-		itemFrame.BackgroundColor3 = Color3.fromRGB(22, 16, 34)
-		itemFrame.Size = UDim2.new(1, 0, 0, 28)
-		Instance.new("UICorner", itemFrame).CornerRadius = UDim.new(0, 8)
-		local itemStroke = Instance.new("UIStroke", itemFrame)
-		itemStroke.Color = Color3.fromRGB(80, 40, 140)
-		itemStroke.Thickness = 1
-		local nameLabel = Instance.new("TextLabel", itemFrame)
-		nameLabel.BackgroundTransparency = 1
-		nameLabel.Position = UDim2.new(0, 10, 0, 0)
-		nameLabel.Size = UDim2.new(1, -40, 1, 0)
-		nameLabel.Font = Enum.Font.GothamSemibold
-		nameLabel.Text = "🛡️ " .. tostring(name)
-		nameLabel.TextColor3 = Color3.fromRGB(220, 200, 255)
-		nameLabel.TextSize = 11
-		nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-		local delBtn = Instance.new("TextButton", itemFrame)
-		delBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 60)
-		delBtn.Position = UDim2.new(1, -26, 0.5, -9)
-		delBtn.Size = UDim2.new(0, 18, 0, 18)
-		delBtn.Font = Enum.Font.GothamBold
-		delBtn.Text = "✕"
-		delBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-		delBtn.TextSize = 10
-		Instance.new("UICorner", delBtn).CornerRadius = UDim.new(0, 4)
-		delBtn.MouseButton1Click:Connect(function()
-			Settings.Whitelist.Players[name] = nil
-			Settings.Whitelist.Players[string.lower(name)] = nil
-			UpdateWhitelistUI()
-		end)
-	end
-	if count == 0 then
-		local emptyLbl = Instance.new("TextLabel", listContainer)
-		emptyLbl.BackgroundTransparency = 1
-		emptyLbl.Size = UDim2.new(1, 0, 0, 24)
-		emptyLbl.Font = Enum.Font.Gotham
-		emptyLbl.Text = "No custom players whitelisted"
-		emptyLbl.TextColor3 = Color3.fromRGB(120, 110, 140)
-		emptyLbl.TextSize = 11
-	end
-end
-
-addPickerBtn.MouseButton1Click:Connect(function()
-	if selectedPlayerName and selectedPlayerName ~= "" and selectedPlayerName ~= "None in server" then
-		Settings.Whitelist.Players[selectedPlayerName] = true
-		Settings.Whitelist.Players[string.lower(selectedPlayerName)] = true
-		UpdateWhitelistUI()
-	end
-end)
-addManualBtn.MouseButton1Click:Connect(function()
-	local text = manualBox.Text:gsub("%s+", "")
-	if text ~= "" then
-		Settings.Whitelist.Players[text] = true
-		Settings.Whitelist.Players[string.lower(text)] = true
-		manualBox.Text = ""
-		UpdateWhitelistUI()
-	end
-end)
-
-local clearAllBtn = Instance.new("TextButton", WhitelistPage)
-clearAllBtn.BackgroundColor3 = Color3.fromRGB(34, 16, 26)
-clearAllBtn.Size = UDim2.new(1, 0, 0, 28)
-clearAllBtn.Font = Enum.Font.GothamSemibold
-clearAllBtn.Text = "🗑️ Clear Whitelist"
-clearAllBtn.TextColor3 = Color3.fromRGB(255, 120, 130)
-clearAllBtn.TextSize = 11
-Instance.new("UICorner", clearAllBtn).CornerRadius = UDim.new(0, 8)
-local caStroke =
+AddKeyHelp("• [X] - Toggle Fly")
+AddKeyHelp("• [B] - VClip Up")
+AddKeyHelp("• [V] - VClip Down")
+AddKeyHelp("• [Q] - Toggle Aimbot")
