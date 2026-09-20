@@ -1,6 +1,6 @@
 -- COCITESCRIPT | Da Hood & Flame Hood Edition (Clean Startup & Anti-Freeze)
 -- FIXED: Silent Aim 100% только в locked + BulletTP удалён + меню чуть прокачано
--- RAPID FIRE: только патч FireRate (не тапалка)
+-- RAPID FIRE: hold-to-shoot (Activate), работает и на ПК, и на телефоне
 
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
@@ -77,7 +77,7 @@ local Settings = {
     },
     RapidFire = {
         Enabled = false,
-        Rate = 0.05,
+        Delay = 0.01,
     },
     Whitelist = {
         Players = {},
@@ -1099,60 +1099,44 @@ local function CalcRayDirection(origin, targetPos, spread)
     return dir * 1000
 end
 
--- ===================== RAPID FIRE (FireRate only, no Activate spam) =====================
-local originalFireRates = {}
-local rapidScanning = false
+-- ===================== RAPID FIRE (hold to shoot fast) =====================
+local is_firing = false
 
-local RATE_KEYS = {"FireRate", "fireRate", "Cooldown", "cooldown", "FireSpeed", "ShootDelay", "ShootCooldown", "Delay"}
-
-local function PatchGunFireRate()
-    if not Settings.RapidFire.Enabled or not getgc or rapidScanning then return end
-    rapidScanning = true
-    task.spawn(function()
-        pcall(function()
-            local targetRate = math.max(0.03, Settings.RapidFire.Rate or 0.05)
-            for _, v in pairs(getgc(false)) do
-                if typeof(v) == "table" then
-                    for _, key in ipairs(RATE_KEYS) do
-                        local val = rawget(v, key)
-                        if type(val) == "number" and val > 0.02 and val < 5 then
-                            if originalFireRates[v] == nil then
-                                originalFireRates[v] = {}
-                            end
-                            if originalFireRates[v][key] == nil then
-                                originalFireRates[v][key] = val
-                            end
-                            pcall(function()
-                                rawset(v, key, targetRate)
-                            end)
-                        end
-                    end
-                end
-            end
-        end)
-        rapidScanning = false
-    end)
-end
-
-local function RestoreGunFireRate()
-    for tbl, keys in pairs(originalFireRates) do
-        for key, orig in pairs(keys) do
-            pcall(function()
-                rawset(tbl, key, orig)
-            end)
+local function GetGun()
+    local char = LocalPlayer.Character
+    if not char then return nil end
+    for _, tool in ipairs(char:GetChildren()) do
+        if tool:IsA("Tool") and tool:FindFirstChild("Ammo") then
+            return tool
         end
     end
+    return nil
 end
 
--- при респавне если rapid вкл — патчим снова
-LocalPlayer.CharacterAdded:Connect(function()
-    if Settings.RapidFire.Enabled then
-        task.delay(1.2, function()
-            originalFireRates = {}
-            PatchGunFireRate()
-        end)
+table.insert(_G.CociteConnections, UserInputService.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if input.UserInputType ~= Enum.UserInputType.MouseButton1
+       and input.UserInputType ~= Enum.UserInputType.Touch then return end
+    if not Settings.RapidFire.Enabled or is_firing then return end
+
+    is_firing = true
+    while is_firing and Settings.RapidFire.Enabled do
+        local gun = GetGun()
+        if gun then
+            pcall(function() gun:Activate() end)
+        end
+        task.wait(Settings.RapidFire.Delay)
     end
-end)
+    is_firing = false
+end))
+
+table.insert(_G.CociteConnections, UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+       or input.UserInputType == Enum.UserInputType.Touch then
+        is_firing = false
+    end
+end))
+-- =================== END RAPID FIRE ===================
 
 local AimbotFOVCircle = nil
 local SilentFOVCircle = nil
@@ -1558,20 +1542,13 @@ CreateSection(AimbotPage, "RAPID FIRE")
 
 CreateToggle(AimbotPage, "Rapid Fire", Settings.RapidFire.Enabled, function(state)
     Settings.RapidFire.Enabled = state
-    if state then
-        originalFireRates = {}
-        PatchGunFireRate()
-    else
-        RestoreGunFireRate()
+    if not state then
+        is_firing = false
     end
 end)
 
-CreateSlider(AimbotPage, "Fire Rate Delay", 0.03, 0.25, Settings.RapidFire.Rate, "s", 0.01, function(val)
-    Settings.RapidFire.Rate = val
-    if Settings.RapidFire.Enabled then
-        originalFireRates = {}
-        PatchGunFireRate()
-    end
+CreateSlider(AimbotPage, "Rapid Fire Delay", 0.01, 0.25, Settings.RapidFire.Delay, "s", 0.01, function(val)
+    Settings.RapidFire.Delay = val
 end)
 
 -- ESP
