@@ -1,11 +1,12 @@
 -- COCITESCRIPT | Da Hood & Flame Hood Edition
--- FULL: Silent start + Real God + Legit KillAura + NoRecoil + InfiniteAmmo + Config + HitChance + Speed/Jump
--- FOV hidden until auth. Nothing auto-enables after key.
+-- NO GodMode / NO KillAura
+-- FIX: weapon equip lag (getgc throttled, no per-frame full scan)
 
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
@@ -38,8 +39,6 @@ pcall(function()
         local prevPlayerGui = LocalPlayer.PlayerGui:FindFirstChild("CociteCyberGui")
         if prevPlayerGui then prevPlayerGui:Destroy() end
     end
-    if workspace:FindFirstChild("CociteCamProxy") then workspace.CociteCamProxy:Destroy() end
-    if workspace:FindFirstChild("CociteTPGhost") then workspace.CociteTPGhost:Destroy() end
     local char = LocalPlayer and LocalPlayer.Character
     if char and char:FindFirstChildOfClass("Humanoid") and Camera then
         if Camera.CameraSubject ~= char:FindFirstChildOfClass("Humanoid") then
@@ -92,13 +91,6 @@ local Settings = {
         Multiplier = 4,
         MinDelay = 0.03,
     },
-    KillAura = {
-        Enabled = false,
-        Range = 12,
-        TargetPart = "HumanoidRootPart",
-        OnlyKO = false,
-        Delay = 0.22,
-    },
     AntiDetect = {
         Enabled = true,
         RandomizeAim = true,
@@ -123,7 +115,6 @@ local Settings = {
         Fly = false,
         FlySpeed = 50,
         VClipDistance = 10,
-        GodMode = false,
         SpeedEnabled = false,
         WalkSpeed = 16,
         JumpEnabled = false,
@@ -166,13 +157,6 @@ local function SaveConfig()
             Multiplier = Settings.RapidFire.Multiplier,
             MinDelay = Settings.RapidFire.MinDelay,
         },
-        KillAura = {
-            Enabled = Settings.KillAura.Enabled,
-            Range = Settings.KillAura.Range,
-            TargetPart = Settings.KillAura.TargetPart,
-            OnlyKO = Settings.KillAura.OnlyKO,
-            Delay = Settings.KillAura.Delay,
-        },
         AntiDetect = {
             Enabled = Settings.AntiDetect.Enabled,
             RandomizeAim = Settings.AntiDetect.RandomizeAim,
@@ -201,7 +185,7 @@ local function SaveConfig()
         }
     }
     pcall(function()
-        writefile(CONFIG_FILE, game:GetService("HttpService"):JSONEncode(data))
+        writefile(CONFIG_FILE, HttpService:JSONEncode(data))
     end)
 end
 
@@ -210,7 +194,7 @@ local function LoadConfig()
     pcall(function()
         if isfile(CONFIG_FILE) then
             local raw = readfile(CONFIG_FILE)
-            local data = game:GetService("HttpService"):JSONDecode(raw)
+            local data = HttpService:JSONDecode(raw)
             if type(data) ~= "table" then return end
             local function merge(dst, src)
                 if type(src) ~= "table" then return end
@@ -226,7 +210,6 @@ local function LoadConfig()
         end
     end)
 end
-
 LoadConfig()
 
 local friendCache = {}
@@ -776,6 +759,19 @@ TabButtons["AIMBOT"].TextColor3 = Color3.fromRGB(255, 255, 255)
 
 local AimActive = false
 local aimbotToggleObj = nil
+local silentToggleObj = nil
+local flyToggleObj = nil
+local updatingFromFloat = false
+local flyConnection = nil
+local currentFlyCFrame = nil
+local speedConnection = nil
+local lockedSilentTarget = nil
+local IsWallCheckVisible
+local currentSilentTarget = nil
+local currentSilentTargetPart = nil
+local currentSilentAimPos = nil
+local equippedToolName = nil
+local isInternalRay = false
 
 local AimFloatBtn = Instance.new("TextButton", ScreenGui)
 AimFloatBtn.Name = "CociteAimFloatBtn"
@@ -827,17 +823,6 @@ Instance.new("UICorner", FlyFloatBtn).CornerRadius = UDim.new(0, 12)
 local flyFloatStroke = Instance.new("UIStroke", FlyFloatBtn)
 flyFloatStroke.Color = Color3.fromRGB(170, 70, 45)
 flyFloatStroke.Thickness = 1.6
-
-local updatingFromFloat = false
-local silentToggleObj = nil
-local flyConnection = nil
-local flyToggleObj = nil
-local currentFlyCFrame = nil
-local godConnection = nil
-local godToggleObj = nil
-local auraConnection = nil
-local lastAuraHit = 0
-local speedConnection = nil
 
 local function DoVClip(distance)
     local char = LocalPlayer.Character
@@ -979,9 +964,6 @@ local function UpdateSilentAimState(state, fromUI)
     end
 end
 
-local lockedSilentTarget = nil
-local IsWallCheckVisible
-
 local function ToggleSilentLock()
     if not Settings.SilentAim.Enabled then return end
     if lockedSilentTarget then
@@ -1043,7 +1025,6 @@ LoginBtn.MouseButton1Click:Connect(function()
         MainFrame.Visible = true
         TweenService:Create(MainFrame, TweenInfo.new(0.5), {BackgroundTransparency = 0}):Play()
         TweenService:Create(MainStroke, TweenInfo.new(0.5), {Transparency = 0}):Play()
-        -- ничего само не включаем
         UpdateAimState(false)
         UpdateSilentAimState(false, true)
         UpdateFlyState(false, true)
@@ -1053,7 +1034,6 @@ LoginBtn.MouseButton1Click:Connect(function()
     end
 end)
 
-local isInternalRay = false
 IsWallCheckVisible = function(part, targetChar)
     if not Settings.SilentAim.WallCheck then return true end
     local localChar = LocalPlayer.Character
@@ -1071,11 +1051,6 @@ IsWallCheckVisible = function(part, targetChar)
     if not hit or hit.Instance:IsDescendantOf(targetChar) then return true end
     return false
 end
-
-local currentSilentTarget = nil
-local currentSilentTargetPart = nil
-local currentSilentAimPos = nil
-local equippedToolName = nil
 
 local function OnCharacterAdded(char)
     equippedToolName = nil
@@ -1128,54 +1103,62 @@ local function CalcRayDirection(origin, targetPos, spread)
     return dir * 1000
 end
 
--- ===================== GUN PATCHES (Rapid / NoRecoil / InfiniteAmmo) =====================
+-- ===================== GUN PATCHES (LAG-FREE) =====================
 local originalFireRates = {}
 local patchedTables = {}
-local rapidFireLoop = nil
+local lastFullScan = 0
+local SCAN_COOLDOWN = 3.5
+local applyLoop = nil
+
+local RATE_KEYS = {"FireRate", "fireRate", "Cooldown", "cooldown", "FireSpeed", "ShootCooldown", "Delay", "ShootDelay"}
+local RECOIL_KEYS = {"Recoil", "recoil", "Kick", "kick", "CameraKick", "RecoilPower", "RecoilAmount"}
+local AMMO_KEYS = {"Ammo", "Clip", "MaxAmmo", "ammo", "clip", "Bullets"}
 
 local function IsGunTable(t)
     if typeof(t) ~= "table" then return false end
-    for _, key in ipairs({"FireRate", "fireRate", "Cooldown", "cooldown", "FireSpeed", "ShootCooldown", "Delay", "ShootDelay", "Recoil", "recoil", "Kick", "Ammo", "Clip", "MaxAmmo"}) do
+    for _, key in ipairs(RATE_KEYS) do
         local val = rawget(t, key)
-        if type(val) == "number" then return true end
+        if type(val) == "number" and val > 0.01 and val < 5 then return true end
+    end
+    for _, key in ipairs(RECOIL_KEYS) do
+        if type(rawget(t, key)) == "number" then return true end
+    end
+    for _, key in ipairs(AMMO_KEYS) do
+        if type(rawget(t, key)) == "number" then return true end
     end
     return false
 end
 
-local function PatchGunTables(force)
+local function NeedGunPatches()
+    return Settings.RapidFire.Enabled or Settings.NoRecoil.Enabled or Settings.InfiniteAmmo.Enabled
+end
+
+local function ScanGunTables(force)
     if not getgc then return end
+    if not NeedGunPatches() and not force then return end
+    local now = tick()
+    if not force and (now - lastFullScan) < SCAN_COOLDOWN then return end
+    lastFullScan = now
+
     for _, v in pairs(getgc(true)) do
-        if typeof(v) == "table" and IsGunTable(v) and (force or not patchedTables[v]) then
-            for _, key in ipairs({"FireRate", "fireRate", "Cooldown", "cooldown", "FireSpeed", "ShootCooldown", "Delay", "ShootDelay"}) do
+        if typeof(v) == "table" and IsGunTable(v) and not patchedTables[v] then
+            if not originalFireRates[v] then originalFireRates[v] = {} end
+            for _, key in ipairs(RATE_KEYS) do
                 local val = rawget(v, key)
                 if type(val) == "number" and val > 0.01 and val < 5 then
-                    if not originalFireRates[v] then originalFireRates[v] = {} end
-                    if not originalFireRates[v][key] then originalFireRates[v][key] = val end
-                    if Settings.RapidFire.Enabled then
-                        local multi = math.max(1, Settings.RapidFire.Multiplier or 4)
-                        local newVal = math.max(Settings.RapidFire.MinDelay or 0.03, val / multi)
-                        pcall(function() rawset(v, key, newVal) end)
-                    end
+                    if originalFireRates[v][key] == nil then originalFireRates[v][key] = val end
                 end
             end
-            for _, key in ipairs({"Recoil", "recoil", "Kick", "kick", "CameraKick", "RecoilPower", "RecoilAmount"}) do
+            for _, key in ipairs(RECOIL_KEYS) do
                 local val = rawget(v, key)
-                if type(val) == "number" then
-                    if not originalFireRates[v] then originalFireRates[v] = {} end
-                    if not originalFireRates[v][key] then originalFireRates[v][key] = val end
-                    if Settings.NoRecoil.Enabled then
-                        pcall(function() rawset(v, key, 0) end)
-                    end
+                if type(val) == "number" and originalFireRates[v][key] == nil then
+                    originalFireRates[v][key] = val
                 end
             end
-            for _, key in ipairs({"Ammo", "Clip", "MaxAmmo", "ammo", "clip", "Bullets"}) do
+            for _, key in ipairs(AMMO_KEYS) do
                 local val = rawget(v, key)
-                if type(val) == "number" then
-                    if not originalFireRates[v] then originalFireRates[v] = {} end
-                    if not originalFireRates[v][key] then originalFireRates[v][key] = val end
-                    if Settings.InfiniteAmmo.Enabled then
-                        pcall(function() rawset(v, key, 999) end)
-                    end
+                if type(val) == "number" and originalFireRates[v][key] == nil then
+                    originalFireRates[v][key] = val
                 end
             end
             patchedTables[v] = true
@@ -1183,25 +1166,26 @@ local function PatchGunTables(force)
     end
 end
 
-local function RestoreFireRates()
-    for tbl, keys in pairs(originalFireRates) do
-        for key, orig in pairs(keys) do
-            pcall(function() rawset(tbl, key, orig) end)
-        end
-    end
-    originalFireRates = {}
-    patchedTables = {}
-end
-
 local function ApplyCachedPatches()
     for tbl, keys in pairs(originalFireRates) do
         for key, orig in pairs(keys) do
-            if key == "Recoil" or key == "recoil" or key == "Kick" or key == "kick" or key == "CameraKick" or key == "RecoilPower" or key == "RecoilAmount" then
-                if Settings.NoRecoil.Enabled then pcall(function() rawset(tbl, key, 0) end)
-                else pcall(function() rawset(tbl, key, orig) end) end
-            elseif key == "Ammo" or key == "Clip" or key == "MaxAmmo" or key == "ammo" or key == "clip" or key == "Bullets" then
-                if Settings.InfiniteAmmo.Enabled then pcall(function() rawset(tbl, key, 999) end)
-                else pcall(function() rawset(tbl, key, orig) end) end
+            local isRecoil = false
+            local isAmmo = false
+            for _, k in ipairs(RECOIL_KEYS) do if k == key then isRecoil = true break end end
+            for _, k in ipairs(AMMO_KEYS) do if k == key then isAmmo = true break end end
+
+            if isRecoil then
+                if Settings.NoRecoil.Enabled then
+                    pcall(function() rawset(tbl, key, 0) end)
+                else
+                    pcall(function() rawset(tbl, key, orig) end)
+                end
+            elseif isAmmo then
+                if Settings.InfiniteAmmo.Enabled then
+                    pcall(function() rawset(tbl, key, 999) end)
+                else
+                    pcall(function() rawset(tbl, key, orig) end)
+                end
             else
                 if Settings.RapidFire.Enabled then
                     local multi = math.max(1, Settings.RapidFire.Multiplier or 4)
@@ -1215,195 +1199,87 @@ local function ApplyCachedPatches()
     end
 end
 
-local function StartRapidFireLoop()
-    if rapidFireLoop then return end
-    PatchGunTables(true)
-    rapidFireLoop = RunService.Heartbeat:Connect(function()
-        if Settings.RapidFire.Enabled or Settings.NoRecoil.Enabled or Settings.InfiniteAmmo.Enabled then
+local function StartPatchLoop()
+    if applyLoop then return end
+    ScanGunTables(true)
+    ApplyCachedPatches()
+    -- лёгкий цикл: только apply по кэшу, без getgc
+    applyLoop = RunService.Heartbeat:Connect(function()
+        if NeedGunPatches() then
             ApplyCachedPatches()
         end
     end)
-    table.insert(_G.CociteConnections, rapidFireLoop)
+    table.insert(_G.CociteConnections, applyLoop)
+end
+
+local function RequestGunRescan()
+    if not NeedGunPatches() then return end
+    task.spawn(function()
+        task.wait(0.6)
+        ScanGunTables(true)
+        ApplyCachedPatches()
+        StartPatchLoop()
+    end)
 end
 
 task.spawn(function()
-    task.wait(1.5)
-    if Settings.RapidFire.Enabled or Settings.NoRecoil.Enabled or Settings.InfiniteAmmo.Enabled then
-        StartRapidFireLoop()
+    task.wait(2)
+    if NeedGunPatches() then
+        StartPatchLoop()
     end
 end)
 
 LocalPlayer.CharacterAdded:Connect(function()
     task.spawn(function()
-        task.wait(1.2)
+        task.wait(1.5)
         originalFireRates = {}
         patchedTables = {}
-        if Settings.RapidFire.Enabled or Settings.NoRecoil.Enabled or Settings.InfiniteAmmo.Enabled then
-            PatchGunTables(true)
+        lastFullScan = 0
+        if NeedGunPatches() then
+            ScanGunTables(true)
+            ApplyCachedPatches()
+            StartPatchLoop()
         end
     end)
 end)
 
+-- debounce на экипировку — НЕ скан каждый раз
+local equipDebounce = false
+local function OnToolAdded()
+    if equipDebounce or not NeedGunPatches() then return end
+    equipDebounce = true
+    task.delay(1.2, function()
+        equipDebounce = false
+        ScanGunTables(false) -- уважает SCAN_COOLDOWN
+        ApplyCachedPatches()
+    end)
+end
+
 local function HookToolAdded(char)
     char.ChildAdded:Connect(function(child)
         if child:IsA("Tool") then
-            task.wait(0.4)
-            if Settings.RapidFire.Enabled or Settings.NoRecoil.Enabled or Settings.InfiniteAmmo.Enabled then
-                PatchGunTables(true)
-            end
+            equippedToolName = child.Name
+            OnToolAdded()
         end
     end)
 end
 if LocalPlayer.Character then HookToolAdded(LocalPlayer.Character) end
 LocalPlayer.CharacterAdded:Connect(HookToolAdded)
 
--- ===================== GOD MODE =====================
-local function UpdateGodMode(state, fromUI)
-    Settings.Misc.GodMode = state
-    if not fromUI and godToggleObj and godToggleObj.Set then godToggleObj:Set(state) end
-    if state then
-        if godConnection then return end
-        godConnection = RunService.Heartbeat:Connect(function()
-            if not Settings.Misc.GodMode then return end
-            local char = LocalPlayer.Character
-            if not char then return end
-            local hum = char:FindFirstChildOfClass("Humanoid")
-            if not hum then return end
-            local be = char:FindFirstChild("BodyEffects")
-            if be then
-                local ko = be:FindFirstChild("K.O") or be:FindFirstChild("KO")
-                if ko and ko.Value == true then pcall(function() ko.Value = false end) end
-                local dead = be:FindFirstChild("Dead")
-                if dead and dead.Value == true then pcall(function() dead.Value = false end) end
-                local force = be:FindFirstChild("ForceField")
-                if force then pcall(function() force.Value = true end) end
-                local reload = be:FindFirstChild("Reload")
-                if reload and reload.Value == true then pcall(function() reload.Value = false end) end
-            end
-            if hum.Health < hum.MaxHealth then hum.Health = hum.MaxHealth end
-            if hum.MaxHealth < 100 then hum.MaxHealth = 100 end
-            pcall(function()
-                hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
-                hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-            end)
-        end)
-        table.insert(_G.CociteConnections, godConnection)
-    else
-        if godConnection then godConnection:Disconnect() godConnection = nil end
-        local char = LocalPlayer.Character
-        if char then
-            local be = char:FindFirstChild("BodyEffects")
-            if be then
-                local force = be:FindFirstChild("ForceField")
-                if force then pcall(function() force.Value = false end) end
-            end
-            local hum = char:FindFirstChildOfClass("Humanoid")
-            if hum then
-                pcall(function()
-                    hum:SetStateEnabled(Enum.HumanoidStateType.Dead, true)
-                    hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
-                end)
-            end
-        end
-    end
-end
-
--- ===================== KILL AURA (LEGIT) =====================
-local function GetClosestAuraTarget()
-    local char = LocalPlayer.Character
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return nil, nil end
-    local cam = workspace.CurrentCamera or Camera
-    if not cam then return nil, nil end
-    local closest, closestDist, closestPart = nil, Settings.KillAura.Range, nil
-    local look = cam.CFrame.LookVector
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character and not IsWhitelisted(player) then
-            local tChar = player.Character
-            local thum = tChar:FindFirstChildOfClass("Humanoid")
-            local part = GetCharacterAimPart(tChar, Settings.KillAura.TargetPart)
-            if thum and thum.Health > 0 and part then
-                local dist = (part.Position - hrp.Position).Magnitude
-                if dist <= closestDist then
-                    local dir = (part.Position - cam.CFrame.Position).Unit
-                    if look:Dot(dir) >= 0.55 then
-                        if Settings.KillAura.OnlyKO then
-                            local be = tChar:FindFirstChild("BodyEffects")
-                            local ko = be and (be:FindFirstChild("K.O") or be:FindFirstChild("KO"))
-                            if ko and ko.Value == true then
-                                closestDist = dist
-                                closest = player
-                                closestPart = part
-                            end
-                        else
-                            closestDist = dist
-                            closest = player
-                            closestPart = part
-                        end
-                    end
-                end
-            end
-        end
-    end
-    return closest, closestPart
-end
-
-local function DoAuraHit(target, part)
-    if not target or not part then return end
-    local char = LocalPlayer.Character
-    if not char then return end
-    local mainEvent = nil
-    pcall(function() mainEvent = game:GetService("ReplicatedStorage"):FindFirstChild("MainEvent") end)
-    if mainEvent and math.random() > 0.12 then
-        pcall(function() mainEvent:FireServer("Punch", part.Position) end)
-    end
-    local tool = char:FindFirstChildOfClass("Tool")
-    if tool and math.random() > 0.15 then
-        pcall(function() tool:Activate() end)
-    end
-end
-
-local function UpdateKillAura(state)
-    Settings.KillAura.Enabled = state
-    if state then
-        if auraConnection then return end
-        auraConnection = RunService.Heartbeat:Connect(function()
-            if not Settings.KillAura.Enabled then return end
-            local baseDelay = Settings.KillAura.Delay or 0.22
-            local jitter = (math.random() * 0.16) - 0.02
-            local realDelay = math.clamp(baseDelay + jitter, 0.16, 0.45)
-            local now = tick()
-            if now - lastAuraHit < realDelay then return end
-            local target, part = GetClosestAuraTarget()
-            if target and part then
-                DoAuraHit(target, part)
-                lastAuraHit = now
-            end
-        end)
-        table.insert(_G.CociteConnections, auraConnection)
-    else
-        if auraConnection then auraConnection:Disconnect() auraConnection = nil end
-    end
-end
-
 -- ===================== SPEED / JUMP =====================
-local function UpdateSpeedJump()
-    if speedConnection then return end
-    speedConnection = RunService.Heartbeat:Connect(function()
-        local char = LocalPlayer.Character
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
-        if not hum then return end
-        if Settings.Misc.SpeedEnabled then
-            hum.WalkSpeed = Settings.Misc.WalkSpeed or 16
-        end
-        if Settings.Misc.JumpEnabled then
-            hum.JumpPower = Settings.Misc.JumpPower or 50
-            pcall(function() hum.JumpHeight = (Settings.Misc.JumpPower or 50) / 7.5 end)
-        end
-    end)
-    table.insert(_G.CociteConnections, speedConnection)
-end
-UpdateSpeedJump()
+speedConnection = RunService.Heartbeat:Connect(function()
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+    if Settings.Misc.SpeedEnabled then
+        hum.WalkSpeed = Settings.Misc.WalkSpeed or 16
+    end
+    if Settings.Misc.JumpEnabled then
+        hum.JumpPower = Settings.Misc.JumpPower or 50
+        pcall(function() hum.JumpHeight = (Settings.Misc.JumpPower or 50) / 7.5 end)
+    end
+end)
+table.insert(_G.CociteConnections, speedConnection)
 
 local AimbotFOVCircle = nil
 local SilentFOVCircle = nil
@@ -1453,7 +1329,6 @@ RunService.RenderStepped:Connect(function()
             local part = GetCharacterAimPart(lockedSilentTarget.Character, Settings.SilentAim.AimPart)
             if part then
                 if not Settings.SilentAim.WallCheck or IsWallCheckVisible(part, lockedSilentTarget.Character) then
-                    -- hit chance
                     local chance = Settings.SilentAim.HitChance or 100
                     if math.random(1, 100) <= chance then
                         bestTarget = lockedSilentTarget
@@ -1485,7 +1360,6 @@ RunService.RenderStepped:Connect(function()
     currentSilentTargetPart = bestPart
     currentSilentAimPos = bestPos
 
-    -- FOV только после авторизации
     if AimbotFOVCircle then
         AimbotFOVCircle.Visible = AUTHED and Settings.Aimbot.Enabled and Settings.Aimbot.ShowFOV
         AimbotFOVCircle.Radius = Settings.Aimbot.FOV
@@ -1742,7 +1616,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- ===================== UI PAGES =====================
+-- UI
 CreateSection(AimbotPage, "CAMERA AIMBOT")
 aimbotToggleObj = CreateToggle(AimbotPage, "Aimbot Master", Settings.Aimbot.Enabled, function(state)
     Settings.Aimbot.Enabled = state
@@ -1812,17 +1686,17 @@ CreateSlider(AimbotPage, "Spread Amount", 0, 100, Settings.NoSpread.Amount, "%",
 end)
 CreateToggle(AimbotPage, "No Recoil", Settings.NoRecoil.Enabled, function(state)
     Settings.NoRecoil.Enabled = state
-    if state then StartRapidFireLoop() PatchGunTables(true) else ApplyCachedPatches() end
+    if state then RequestGunRescan() else ApplyCachedPatches() end
 end)
 CreateToggle(AimbotPage, "Infinite Ammo", Settings.InfiniteAmmo.Enabled, function(state)
     Settings.InfiniteAmmo.Enabled = state
-    if state then StartRapidFireLoop() PatchGunTables(true) else ApplyCachedPatches() end
+    if state then RequestGunRescan() else ApplyCachedPatches() end
 end)
 
 CreateSection(AimbotPage, "RAPID FIRE")
 CreateToggle(AimbotPage, "Rapid Fire", Settings.RapidFire.Enabled, function(state)
     Settings.RapidFire.Enabled = state
-    if state then StartRapidFireLoop() PatchGunTables(true) else ApplyCachedPatches() end
+    if state then RequestGunRescan() else ApplyCachedPatches() end
 end)
 CreateSlider(AimbotPage, "Speed Multiplier", 1, 12, Settings.RapidFire.Multiplier, "x", 1, function(val)
     Settings.RapidFire.Multiplier = val
@@ -1844,7 +1718,6 @@ CreateSlider(AimbotPage, "Max Safe Silent FOV", 80, 220, Settings.AntiDetect.Max
     Settings.AntiDetect.MaxSilentFOV = val
 end)
 
--- ESP
 CreateSection(ESPPage, "ESP VISUALS")
 CreateToggle(ESPPage, "Master ESP", false, function(state)
     Settings.ESP.Enabled = state
@@ -1856,7 +1729,6 @@ CreateToggle(ESPPage, "Name ESP", true, function(state) Settings.ESP.Names = sta
 CreateToggle(ESPPage, "Health ESP", true, function(state) Settings.ESP.Health = state end)
 CreateToggle(ESPPage, "Distance ESP", true, function(state) Settings.ESP.Distance = state end)
 
--- WHITELIST
 CreateSection(WhitelistPage, "GLOBAL FILTERS")
 CreateToggle(WhitelistPage, "Whitelist Friends", Settings.Whitelist.Friends, function(state)
     Settings.Whitelist.Friends = state
@@ -1870,9 +1742,7 @@ local serverPickerFrame = Instance.new("Frame", WhitelistPage)
 serverPickerFrame.BackgroundColor3 = Color3.fromRGB(18, 14, 30)
 serverPickerFrame.Size = UDim2.new(1, 0, 0, 34)
 Instance.new("UICorner", serverPickerFrame).CornerRadius = UDim.new(0, 10)
-local spStroke = Instance.new("UIStroke", serverPickerFrame)
-spStroke.Color = Color3.fromRGB(100, 45, 170)
-spStroke.Thickness = 1.3
+Instance.new("UIStroke", serverPickerFrame).Color = Color3.fromRGB(100, 45, 170)
 
 local selectedPlayerName = ""
 local serverPlayers = {}
@@ -1928,9 +1798,7 @@ local manualInputFrame = Instance.new("Frame", WhitelistPage)
 manualInputFrame.BackgroundColor3 = Color3.fromRGB(18, 14, 30)
 manualInputFrame.Size = UDim2.new(1, 0, 0, 34)
 Instance.new("UICorner", manualInputFrame).CornerRadius = UDim.new(0, 10)
-local miStroke = Instance.new("UIStroke", manualInputFrame)
-miStroke.Color = Color3.fromRGB(100, 45, 170)
-miStroke.Thickness = 1.3
+Instance.new("UIStroke", manualInputFrame).Color = Color3.fromRGB(100, 45, 170)
 
 local manualBox = Instance.new("TextBox", manualInputFrame)
 manualBox.BackgroundTransparency = 1
@@ -1959,9 +1827,7 @@ local listContainer = Instance.new("Frame", WhitelistPage)
 listContainer.BackgroundTransparency = 1
 listContainer.Size = UDim2.new(1, 0, 0, 0)
 listContainer.AutomaticSize = Enum.AutomaticSize.Y
-local listLayout = Instance.new("UIListLayout", listContainer)
-listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-listLayout.Padding = UDim.new(0, 4)
+Instance.new("UIListLayout", listContainer).Padding = UDim.new(0, 4)
 
 local function UpdateWhitelistUI()
     for _, child in ipairs(listContainer:GetChildren()) do
@@ -1974,9 +1840,6 @@ local function UpdateWhitelistUI()
         itemFrame.BackgroundColor3 = Color3.fromRGB(22, 16, 34)
         itemFrame.Size = UDim2.new(1, 0, 0, 28)
         Instance.new("UICorner", itemFrame).CornerRadius = UDim.new(0, 8)
-        local itemStroke = Instance.new("UIStroke", itemFrame)
-        itemStroke.Color = Color3.fromRGB(80, 40, 140)
-        itemStroke.Thickness = 1
         local nameLabel = Instance.new("TextLabel", itemFrame)
         nameLabel.BackgroundTransparency = 1
         nameLabel.Position = UDim2.new(0, 10, 0, 0)
@@ -2037,37 +1900,11 @@ clearAllBtn.Text = "Clear Whitelist"
 clearAllBtn.TextColor3 = Color3.fromRGB(255, 120, 130)
 clearAllBtn.TextSize = 11
 Instance.new("UICorner", clearAllBtn).CornerRadius = UDim.new(0, 8)
-local caStroke = Instance.new("UIStroke", clearAllBtn)
-caStroke.Color = Color3.fromRGB(130, 35, 45)
-caStroke.Thickness = 1
 clearAllBtn.MouseButton1Click:Connect(function()
     Settings.Whitelist.Players = {}
     UpdateWhitelistUI()
 end)
 UpdateWhitelistUI()
-
--- MISC
-CreateSection(MiscPage, "GOD MODE")
-godToggleObj = CreateToggle(MiscPage, "God Mode (Real)", false, function(state)
-    UpdateGodMode(state, true)
-end)
-
-CreateSection(MiscPage, "KILL AURA (LEGIT)")
-CreateToggle(MiscPage, "Kill Aura", false, function(state)
-    UpdateKillAura(state)
-end)
-CreateSlider(MiscPage, "Aura Range", 6, 16, Settings.KillAura.Range, " st", 1, function(val)
-    Settings.KillAura.Range = val
-end)
-CreateCycle(MiscPage, "Aura Part", {"HumanoidRootPart", "Head", "UpperTorso"}, 1, function(val)
-    Settings.KillAura.TargetPart = val
-end)
-CreateToggle(MiscPage, "Only KO Targets", Settings.KillAura.OnlyKO, function(state)
-    Settings.KillAura.OnlyKO = state
-end)
-CreateSlider(MiscPage, "Hit Delay", 0.16, 0.4, Settings.KillAura.Delay, "s", 0.02, function(val)
-    Settings.KillAura.Delay = val
-end)
 
 CreateSection(MiscPage, "FLY")
 flyToggleObj = CreateToggle(MiscPage, "Fly Master", false, function(state)
@@ -2099,27 +1936,19 @@ CreateButton(MiscPage, "VClip Up", function() DoVClip(Settings.Misc.VClipDistanc
 CreateButton(MiscPage, "VClip Down", function() DoVClip(-Settings.Misc.VClipDistance) end)
 
 CreateSection(MiscPage, "CONFIG")
-CreateButton(MiscPage, "Save Config", function()
-    SaveConfig()
-end)
-CreateButton(MiscPage, "Load Config", function()
-    LoadConfig()
-end)
+CreateButton(MiscPage, "Save Config", function() SaveConfig() end)
+CreateButton(MiscPage, "Load Config", function() LoadConfig() end)
 
 CreateSection(MiscPage, "HOTKEYS")
 local helpFrame = Instance.new("Frame", MiscPage)
 helpFrame.BackgroundColor3 = Color3.fromRGB(18, 14, 30)
 helpFrame.Size = UDim2.new(1, 0, 0, 84)
 Instance.new("UICorner", helpFrame).CornerRadius = UDim.new(0, 10)
-local hfStroke = Instance.new("UIStroke", helpFrame)
-hfStroke.Color = Color3.fromRGB(100, 45, 170)
-hfStroke.Thickness = 1.3
-local hfLayout = Instance.new("UIListLayout", helpFrame)
-hfLayout.SortOrder = Enum.SortOrder.LayoutOrder
-hfLayout.Padding = UDim.new(0, 2)
+Instance.new("UIStroke", helpFrame).Color = Color3.fromRGB(100, 45, 170)
 local hfPad = Instance.new("UIPadding", helpFrame)
 hfPad.PaddingLeft = UDim.new(0, 10)
 hfPad.PaddingTop = UDim.new(0, 6)
+Instance.new("UIListLayout", helpFrame).Padding = UDim.new(0, 2)
 local function AddKeyHelp(txt)
     local lbl = Instance.new("TextLabel", helpFrame)
     lbl.BackgroundTransparency = 1
@@ -2132,3 +1961,5 @@ local function AddKeyHelp(txt)
 end
 AddKeyHelp("[X] - Toggle Fly")
 AddKeyHelp("[B] - VClip Up")
+AddKeyHelp("[V] - VClip Down")
+AddKeyHelp("[Q] - Toggle Aimbot")
